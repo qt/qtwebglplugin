@@ -29,6 +29,7 @@
 
 #include "qwebglwebsocketserver.h"
 
+#include "qwebglcontext.h"
 #include "qwebglfunctioncall.h"
 #include "qwebglintegration.h"
 #include "qwebglintegration_p.h"
