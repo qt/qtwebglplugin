@@ -256,7 +256,7 @@ void QWebGLHttpServer::answerClient(QTcpSocket *socket, const QUrl &url)
     } else if (path == "/favicon.ico") {
         QFile file(QStringLiteral(":/webgl/favicon.ico"));
         Q_ASSERT(file.exists());
-        file.open(QIODevice::ReadOnly | QIODevice::Text);
+        file.open(QIODevice::ReadOnly);
         Q_ASSERT(file.isOpen());
         auto data = file.readAll();
         addData(QByteArrayLiteral("image/x-icon"), data);
