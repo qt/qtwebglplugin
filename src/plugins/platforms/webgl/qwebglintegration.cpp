@@ -103,6 +103,11 @@ QWebGLIntegration *QWebGLIntegration::instance()
 void QWebGLIntegration::initialize()
 {
     Q_D(QWebGLIntegration);
+
+#if defined(QT_QUICK_LIB)
+    qputenv("QSG_RENDER_LOOP", "threaded"); // Force threaded QSG_RENDER_LOOP
+#endif
+
     d->inputContext = QPlatformInputContextFactory::create();
     d->screen = new QWebGLScreen;
     screenAdded(d->screen, true);
