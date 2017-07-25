@@ -229,21 +229,21 @@ void QWebGLHttpServer::answerClient(QTcpSocket *socket, const QUrl &url)
                   data;
     };
 
-    if (path == "/") {
+    if (path == QLatin1String("/")) {
         QFile file(QStringLiteral(":/webgl/index.html"));
         Q_ASSERT(file.exists());
         file.open(QIODevice::ReadOnly | QIODevice::Text);
         Q_ASSERT(file.isOpen());
         auto data = file.readAll();
         addData(QByteArrayLiteral("text/html; charset=\"utf-8\""), data);
-    } else if (path == "/clipboard") {
+    } else if (path == QStringLiteral("/clipboard")) {
 #ifndef QT_NO_CLIPBOARD
         auto data = qGuiApp->clipboard()->text().toUtf8();
         addData(QByteArrayLiteral("text/html; charset=\"utf-8\""), data);
 #else
         qCWarning(lc, "Qt was built without clipboard support");
 #endif
-    } else if (path == "/webqt.js") {
+    } else if (path == QStringLiteral("/webqt.js")) {
         QFile file(QStringLiteral(":/webgl/webqt.jsx"));
         Q_ASSERT(file.exists());
         file.open(QIODevice::ReadOnly | QIODevice::Text);
@@ -253,14 +253,14 @@ void QWebGLHttpServer::answerClient(QTcpSocket *socket, const QUrl &url)
         QByteArray data = "var host = \"" + host + "\";\r\nvar port = " + port + ";\r\n";
         data += file.readAll();
         addData(QByteArrayLiteral("application/javascript"), data);
-    } else if (path == "/favicon.ico") {
+    } else if (path == QStringLiteral("/favicon.ico")) {
         QFile file(QStringLiteral(":/webgl/favicon.ico"));
         Q_ASSERT(file.exists());
         file.open(QIODevice::ReadOnly);
         Q_ASSERT(file.isOpen());
         auto data = file.readAll();
         addData(QByteArrayLiteral("image/x-icon"), data);
-    } else if (path == "/favicon.png") {
+    } else if (path == QStringLiteral("/favicon.png")) {
         QBuffer buffer;
         qGuiApp->windowIcon().pixmap(16, 16).save(&buffer, "png");
         addData(QByteArrayLiteral("image/x-icon"), buffer.data());
