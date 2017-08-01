@@ -2452,6 +2452,7 @@ QFunctionPointer QWebGLContext::getProcAddress(const char *procName)
     for (auto i = 0u; i < size; ++i)
         if (strcmp(procName, funcTab[i].name) == 0)
             return funcTab[i].func;
+    qCCritical(lc, "%s function not available", procName);
     return nullptr;
 }
 

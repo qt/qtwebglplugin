@@ -1,3 +1,3 @@
-requires(!winrt:qtHaveModule(websockets):qtHaveModule(gui):qtConfig(opengles2))
+requires(!winrt:!macos:qtHaveModule(websockets):qtHaveModule(gui))
 
 load(qt_parts)
