@@ -170,7 +170,7 @@ QPlatformFontDatabase *QWebGLIntegration::fontDatabase() const
 
 QPlatformTheme *QWebGLIntegration::createPlatformTheme(const QString &name) const
 {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
     return QPlatformIntegration::createPlatformTheme(name);
 #else
     return QGenericUnixTheme::createUnixTheme(name);

@@ -39,9 +39,12 @@
 #include <QtCore/qwaitcondition.h>
 #include <QtGui/qpa/qplatforminputcontextfactory_p.h>
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
 #include <QtFontDatabaseSupport/private/qwindowsfontdatabase_p.h>
 #include <QtEventDispatcherSupport/private/qwindowsguieventdispatcher_p.h>
+#elif defined(Q_OS_MACOS)
+#include <QtFontDatabaseSupport/private/qcoretextfontdatabase_p.h>
+#include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
 #else
 #include <QtFontDatabaseSupport/private/qgenericunixfontdatabase_p.h>
 #include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
@@ -69,6 +72,8 @@ public:
     quint16 httpPort = 0;
 #if defined(Q_OS_WIN)
     mutable QWindowsFontDatabase fontDatabase;
+#elif defined(Q_OS_MACOS)
+    mutable QCoreTextFontDatabase fontDatabase;
 #else
     mutable QGenericUnixFontDatabase fontDatabase;
 #endif
