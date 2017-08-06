@@ -1,3 +1,3 @@
-requires(!winrt:!watchos:!tvos:qtHaveModule(websockets):qtHaveModule(gui))
+requires(!winrt:!watchos:qtHaveModule(websockets):qtHaveModule(gui))
 
 load(qt_parts)
