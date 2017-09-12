@@ -48,6 +48,7 @@
 #include <QtWebSockets/qwebsocket.h>
 
 #include <cstring>
+#include <limits>
 
 QT_BEGIN_NAMESPACE
 
@@ -286,7 +287,6 @@ static T queryValue(int id, const T &defaultValue = T())
     return variant.value<T>();
 }
 
-struct GLFunction;
 template<typename T>
 struct ParameterTypeTraits {
     static int typeId() { return qMetaTypeId<T>(); }
@@ -320,6 +320,7 @@ struct GLFunction
     };
 
     static QHash<QString, const GLFunction *> byName;
+    static QStringList remoteFunctionNames;
     using ParameterList = QVector<Parameter>;
 
     GLFunction(const QString &remoteName,
@@ -331,11 +332,15 @@ struct GLFunction
     {
         Q_ASSERT(!byName.contains(localName));
         byName.insert(localName, this);
+        id = remoteFunctionNames.size();
+        Q_ASSERT(remoteFunctionNames.size() <= std::numeric_limits<quint8>::max());
+        remoteFunctionNames.append(remoteName);
+        Q_ASSERT(byName.size() == remoteFunctionNames.size());
     }
 
     GLFunction(const QString &name) : GLFunction(name, name, nullptr)
     {}
-
+    quint8 id;
     const QString remoteName;
     const QString localName;
     const QFunctionPointer functionPointer;
@@ -343,6 +348,7 @@ struct GLFunction
 };
 
 QHash<QString, const GLFunction *> GLFunction::byName;
+QStringList GLFunction::remoteFunctionNames;
 
 template<const GLFunction *Function>
 static QWebGLFunctionCall *createEventImpl(bool wait)
@@ -355,7 +361,7 @@ static QWebGLFunctionCall *createEventImpl(bool wait)
     if (!clientData || !clientData->socket
             || clientData->socket->state() != QAbstractSocket::ConnectedState)
         return nullptr;
-    return new QWebGLFunctionCall(Function->remoteName, handle->currentSurface(), wait);
+    return new QWebGLFunctionCall(Function->localName, handle->currentSurface(), wait);
 }
 
 static void postEventImpl(QWebGLFunctionCall *event)
@@ -667,7 +673,7 @@ QWEBGL_FUNCTION(disableVertexAttribArray, void, glDisableVertexAttribArray,
 QWEBGL_FUNCTION(drawArrays, void, glDrawArrays,
                 (GLenum) mode, (GLint) first, (GLsizei) count)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("drawArrays"));
+    auto event = currentContext()->createEvent(QStringLiteral("glDrawArrays"));
     if (!event)
         return;
     event->addParameters(mode, first, count);
@@ -681,7 +687,7 @@ QWEBGL_FUNCTION(drawArrays, void, glDrawArrays,
 QWEBGL_FUNCTION(drawElements, void, glDrawElements,
                 (GLenum) mode, (GLsizei) count, (GLenum) type, (const void *) indices)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("drawElements"));
+    auto event = currentContext()->createEvent(QStringLiteral("glDrawElements"));
     if (!event)
         return;
     event->addParameters(mode, count, type);
@@ -1177,7 +1183,7 @@ QWEBGL_FUNCTION(shaderSource, void, glShaderSource,
                 (GLuint) shader, (GLsizei) count,
                 (const GLchar *const *) string, (const GLint *) length)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("shaderSource"));
+    auto event = currentContext()->createEvent(QStringLiteral("glShaderSource"));
     if (!event)
         return;
     event->addParameters(shader, count);
@@ -1576,6 +1582,18 @@ QVariant QWebGLContext::queryValue(int id)
     }
     QWebGLContextPrivate::waitingIds.remove(id);
     return variant;
+}
+
+QStringList QWebGLContext::supportedFunctions()
+{
+    return GLFunction::remoteFunctionNames;
+}
+
+quint8 QWebGLContext::functionIndex(const QString &functionName)
+{
+    const auto it = GLFunction::byName.find(functionName);
+    Q_ASSERT(it != GLFunction::byName.end());
+    return (*it)->id;
 }
 
 QT_END_NAMESPACE

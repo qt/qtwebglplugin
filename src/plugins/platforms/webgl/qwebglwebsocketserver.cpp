@@ -175,7 +175,7 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
         QByteArray data;
         {
             QDataStream stream(&data, QIODevice::WriteOnly);
-            stream << functionName;
+            stream << QWebGLContext::functionIndex(functionName);
             if (values.contains("id")) {
                 auto ok = false;
                 stream << quint32(values["id"].toUInt(&ok));
@@ -295,6 +295,8 @@ void QWebGLWebSocketServer::onNewConnection()
 #endif
             },
             { QStringLiteral("loadingScreen"), qgetenv("QT_WEBGL_LOADINGSCREEN") },
+            { QStringLiteral("supportedFunctions"),
+              QVariant::fromValue(QWebGLContext::supportedFunctions()) },
             { "sysinfo",
                 QVariantMap {
                     { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },

@@ -65,6 +65,7 @@ window.onload = function () {
             }
         };
     }
+    var supportedFunctions;
 
     var sendObject = function (obj) { socket.send(JSON.stringify(obj)); }
 
@@ -967,10 +968,8 @@ window.onload = function () {
 
         var offset = 0;
         var obj = { "parameters" : [] };
-        obj["functionNameSize"] = view.getUint32(offset);
-        offset += 4;
-        obj["function"] = textDecoder.decode(new Uint8Array(buffer, offset, obj.functionNameSize));
-        offset += obj.functionNameSize;
+        obj["function"] = supportedFunctions[view.getUint8(offset)];
+        offset += 1;
         if (obj.function in commandsNeedingResponse) {
             obj["id"] = view.getUint32(offset);
             offset += 4;
@@ -1153,6 +1152,7 @@ window.onload = function () {
         } else if (obj.type === "change_title") {
             document.title = obj.text;
         } else if (obj.type === "connect") {
+            supportedFunctions = obj["supportedFunctions"];
             var sysinfo = obj["sysinfo"];
             if (obj["debug"])
                 DEBUG = 1;

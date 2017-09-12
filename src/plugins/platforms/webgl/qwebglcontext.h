@@ -60,6 +60,9 @@ public:
     static QWebGLFunctionCall *createEvent(const QString &functionName, bool wait = false);
     static QVariant queryValue(int id);
 
+    static QStringList supportedFunctions();
+    static quint8 functionIndex(const QString &functionName);
+
 private:
     Q_DISABLE_COPY(QWebGLContext)
     Q_DECLARE_PRIVATE(QWebGLContext)
