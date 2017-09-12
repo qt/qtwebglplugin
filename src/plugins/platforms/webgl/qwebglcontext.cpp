@@ -905,8 +905,8 @@ static void glGetActiveUniform(GLuint program, GLuint index, GLsizei bufSize, GL
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
     const auto values = queryValue(id).toMap();
     int rtype = values["rtype"].toInt();
-    int rsize = values["rtype"].toInt();
-    QByteArray rname = values["rtype"].toByteArray();
+    const auto rsize = values["rsize"].toInt();
+    const auto rname = values["rname"].toByteArray();
     if (type)
         *type = rtype;
     if (size)
