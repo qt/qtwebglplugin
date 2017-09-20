@@ -895,6 +895,7 @@ window.onload = function () {
     }
 
     var commandsNeedingResponse = [
+        "swapBuffers",
         "checkFramebufferStatus",
         "createProgram",
         "createShader",
@@ -1000,12 +1001,17 @@ window.onload = function () {
 
         var offset = 0;
         var obj = { "parameters" : [] };
-        obj["id"] = view.getUint32(offset);
-        offset += 4;
         obj["functionNameSize"] = view.getUint32(offset);
         offset += 4;
         obj["function"] = textDecoder.decode(new Uint8Array(buffer, offset, obj.functionNameSize));
         offset += obj.functionNameSize;
+        for (var i in commandsNeedingResponse) {
+            if (commandsNeedingResponse[i] === obj.function) {
+                obj["id"] = view.getUint32(offset);
+                offset += 4;
+                break;
+            }
+        }
         obj["parameterCount"] = view.getUint32(offset);
         offset += 4;
         for (var i = 0; i < obj.parameterCount; ++i) {
