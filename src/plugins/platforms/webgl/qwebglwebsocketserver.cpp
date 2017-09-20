@@ -197,7 +197,7 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
                     break;
                 case QVariant::ByteArray: {
                     const auto byteArray = value.toByteArray();
-                    if (data.isNull())
+                    if (byteArray.isNull())
                         stream << (quint8)'n';
                     else
                         stream << (quint8)'x' << byteArray;
