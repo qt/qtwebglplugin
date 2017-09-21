@@ -1144,8 +1144,7 @@ static void glGetFramebufferAttachmentParameteriv(GLenum target, GLenum attachme
         *params = value;
 }
 
-static void glGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei* length,
-                                    GLchar* infoLog)
+static void glGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog)
 {
     auto event = currentContext()->createEvent(QStringLiteral("getProgramInfoLog"), true);
     if (!event)
