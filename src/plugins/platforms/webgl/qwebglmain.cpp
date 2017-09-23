@@ -62,6 +62,8 @@ QPlatformIntegration* QWebGLIntegrationPlugin::create(const QString& system,
                     return nullptr;
                 }
             }
+            if (parts.first() == QStringLiteral("noloadingscreen"))
+                qputenv("QT_WEBGL_LOADINGSCREEN", "0");
         }
     }
     if (!system.compare(QLatin1String("webgl"), Qt::CaseInsensitive))

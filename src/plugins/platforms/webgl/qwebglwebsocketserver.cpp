@@ -294,6 +294,7 @@ void QWebGLWebSocketServer::onNewConnection()
                 false
 #endif
             },
+            { QStringLiteral("loadingScreen"), qgetenv("QT_WEBGL_LOADINGSCREEN") },
             { "sysinfo",
                 QVariantMap {
                     { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },

@@ -34,6 +34,7 @@ function physicalSizeRatio() {
 
 window.onload = function () {
     var DEBUG = 0;
+    var LOADINGSCREEN = 1;
     var canvas;
     var socket = new WebSocket("ws://" + host + ":" + port);
     socket.binaryType = "arraybuffer";
@@ -113,6 +114,8 @@ window.onload = function () {
         var body = document.getElementsByTagName("body")[0];
         body.appendChild(canvas);
 
+        if (!LOADINGSCREEN)
+            return canvas;
         var gl = canvas.getContext("webgl");
 
         var loadingVertexShaderSource =
@@ -1186,6 +1189,8 @@ window.onload = function () {
             var sysinfo = obj["sysinfo"];
             if (obj["debug"])
                 DEBUG = 1;
+            if (obj["loadingScreen"] === "0")
+                LOADINGSCREEN = 0;
             console.log(sysinfo);
         } else {
             console.error("Unknown message type");
