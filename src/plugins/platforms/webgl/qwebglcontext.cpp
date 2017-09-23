@@ -1220,11 +1220,22 @@ QWEBGL_FUNCTION(texImage2D, void,  glTexImage2D,
                 (GLsizei) width, (GLsizei) height, (GLint) border, (GLenum) format, (GLenum) type,
                 (const void *) pixels)
 {
+    const auto data = reinterpret_cast<const char *>(pixels);
+    const auto dataSize = imageSize(width, height, format, type,
+                                    currentContextData()->pixelStorage);
+    const bool isNull = data == nullptr || [](const char *pointer, int size) {
+        const char *const end = pointer + size;
+        const unsigned int zero = 0u;
+        const char *const late = end + 1 - sizeof(zero);
+        while (pointer < late) { // we have at least sizeof(zero) more bytes to check:
+            if (*reinterpret_cast<const unsigned int *>(pointer) != zero)
+                return false;
+            pointer += sizeof(zero);
+        }
+        return pointer >= end || std::memcmp(pointer, &zero, end - pointer) == 0;
+    }(data, dataSize);
     postEvent<&texImage2D>(target, level, internalformat, width, height, border, format, type,
-                          pixels ? QByteArray((const char*)pixels,
-                                              imageSize(width, height, format, type,
-                                                        currentContextData()->pixelStorage))
-                                 : nullptr);
+                           isNull ? nullptr : QByteArray(data, dataSize));
 }
 
 QWEBGL_FUNCTION_POSTEVENT(texParameterf, glTexParameterf,
