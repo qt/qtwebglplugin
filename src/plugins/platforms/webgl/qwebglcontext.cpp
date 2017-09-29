@@ -309,7 +309,7 @@ struct GLFunction
 };
 
 template<const GLFunction *Function>
-static QWebGLFunctionCall *createEvent(bool wait)
+static QWebGLFunctionCall *createEventImpl(bool wait)
 {
     auto context = QOpenGLContext::currentContext();
     Q_ASSERT(context);
@@ -319,23 +319,46 @@ static QWebGLFunctionCall *createEvent(bool wait)
     if (!clientData || !clientData->socket
             || clientData->socket->state() != QAbstractSocket::ConnectedState)
         return nullptr;
-    auto pointer = new QWebGLFunctionCall(Function->remoteName, handle->currentSurface(), wait);
-    if (wait)
-        QWebGLContextPrivate::waitingIds.insert(pointer->id());
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, pointer);
-    return pointer;
+    return new QWebGLFunctionCall(Function->remoteName, handle->currentSurface(), wait);
+}
+
+static void postEventImpl(QWebGLFunctionCall *event)
+{
+    if (event->isBlocking())
+        QWebGLContextPrivate::waitingIds.insert(event->id());
+    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+}
+
+template<const GLFunction *Function, class... Ts>
+static QWebGLFunctionCall *createEventAndPostImpl(bool wait, Ts&&... arguments)
+{
+    auto event = createEventImpl<Function>(wait);
+    if (event) {
+        addHelper(event, arguments...);
+        postEventImpl(event);
+    }
+    return event;
+}
+
+template<const GLFunction *Function>
+static QWebGLFunctionCall *createEventAndPostImpl(bool wait)
+{
+    auto event = createEventImpl<Function>(wait);
+    if (event)
+        postEventImpl(event);
+    return event;
 }
 
 template<const GLFunction *Function, class... Ts>
 inline QWebGLFunctionCall *postEventImpl(bool wait, Ts&&... arguments)
 {
-    return addHelper(createEvent<Function>(wait), arguments...);
+    return createEventAndPostImpl<Function>(wait, arguments...);
 }
 
 template<const GLFunction *Function>
-inline QWebGLFunctionCall *postEventImpl(bool wait)
+inline QWebGLFunctionCall *postEvent(bool wait)
 {
-    return createEvent<Function>(wait);
+    return createEventAndPostImpl<Function>(wait);
 }
 
 template<const GLFunction *Function, class...Ts>
