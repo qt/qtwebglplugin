@@ -440,7 +440,7 @@ QWEBGL_FUNCTION(bufferData, void, glBufferData, GLenum target, GLsizeiptr size, 
                 GLenum usage)
 {
     postEvent<&bufferData>(target, usage, int(size), data ? QByteArray((const char *)data, size)
-                                                         : QByteArray());
+                                                          : QByteArray());
 }
 
 QWEBGL_FUNCTION(bufferSubData, void, glBufferSubData, GLenum target, GLintptr offset,
