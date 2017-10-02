@@ -286,6 +286,14 @@ void QWebGLWebSocketServer::onNewConnection()
                 &QWebGLWebSocketServer::onTextMessageReceived);
 
         const QVariantMap values{
+            {
+                QStringLiteral("debug"),
+#ifdef QT_DEBUG
+                true
+#else
+                false
+#endif
+            },
             { "sysinfo",
                 QVariantMap {
                     { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },
