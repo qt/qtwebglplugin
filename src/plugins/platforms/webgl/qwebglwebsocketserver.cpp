@@ -286,14 +286,19 @@ void QWebGLWebSocketServer::onNewConnection()
                 &QWebGLWebSocketServer::onTextMessageReceived);
 
         const QVariantMap values{
-            { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },
-            { QStringLiteral("buildCpuArchitecture"), QSysInfo::buildCpuArchitecture() },
-            { QStringLiteral("currentCpuArchitecture"), QSysInfo::currentCpuArchitecture() },
-            { QStringLiteral("kernelType"), QSysInfo::kernelType() },
-            { QStringLiteral("machineHostName"), QSysInfo::machineHostName() },
-            { QStringLiteral("prettyProductName"), QSysInfo::prettyProductName() },
-            { QStringLiteral("productType"), QSysInfo::productType() },
-            { QStringLiteral("productVersion"), QSysInfo::productVersion() }
+            { "sysinfo",
+                QVariantMap {
+                    { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },
+                    { QStringLiteral("buildCpuArchitecture"), QSysInfo::buildCpuArchitecture() },
+                    { QStringLiteral("currentCpuArchitecture"),
+                      QSysInfo::currentCpuArchitecture() },
+                    { QStringLiteral("kernelType"), QSysInfo::kernelType() },
+                    { QStringLiteral("machineHostName"), QSysInfo::machineHostName() },
+                    { QStringLiteral("prettyProductName"), QSysInfo::prettyProductName() },
+                    { QStringLiteral("productType"), QSysInfo::productType() },
+                    { QStringLiteral("productVersion"), QSysInfo::productVersion() }
+                }
+            }
         };
 
         sendMessage(socket, MessageType::Connect, values);

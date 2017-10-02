@@ -1183,8 +1183,9 @@ window.onload = function () {
         } else if (obj.type === "change_title") {
             document.title = obj.text;
         } else if (obj.type === "connect") {
-            var sysinfo = obj;
-            delete sysinfo["type"];
+            var sysinfo = obj["sysinfo"];
+            if (obj["debug"])
+                DEBUG = 1;
             console.log(sysinfo);
         } else {
             console.error("Unknown message type");
