@@ -519,47 +519,59 @@ void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const Q
     auto window = findWindow(clientData, winId)->window();
     const auto time = object.value("time").toDouble();
     const auto eventType = object.value("event").toString();
-    const auto changedTouch = object.value("changedTouches").toArray().first().toObject();
-    const auto clientX = changedTouch.value("clientX").toDouble();
-    const auto clientY = changedTouch.value("clientY").toDouble();
-    QList<QWindowSystemInterface::TouchPoint> points;
-    for (auto changedTouch : object.value("changedTouches").toArray()) {
-        QWindowSystemInterface::TouchPoint point; // support more than one
-        const auto pageX = changedTouch.toObject().value("pageX").toDouble();
-        const auto pageY = changedTouch.toObject().value("pageY").toDouble();
-        const auto radiousX = changedTouch.toObject().value("radiousX").toDouble();
-        const auto radiousY = changedTouch.toObject().value("radiousY").toDouble();
-        point.id = changedTouch.toObject().value("identifier").toInt(0);
-        point.pressure = changedTouch.toObject().value("force").toDouble(1.);
-        point.area.setX(pageX - radiousX);
-        point.area.setY(pageY - radiousY);
-        point.area.setWidth(radiousX * 2);
-        point.area.setHeight(radiousY * 2);
-        point.normalPosition.setX(changedTouch.toObject().value("normalPositionX").toDouble());
-        point.normalPosition.setY(changedTouch.toObject().value("normalPositionY").toDouble());
-        if (eventType == QStringLiteral("touchstart")) {
-            point.state = Qt::TouchPointPressed;
-        } else if (eventType == QStringLiteral("touchend")) {
-            qCDebug(lcWebGL, ) << "end" << object;
-            point.state = Qt::TouchPointReleased;
-        } else if (eventType == QStringLiteral("touchcancel")) {
-            QWindowSystemInterface::handleTouchCancelEvent(window,
-                                                           time,
-                                                           touchDevice,
-                                                           Qt::NoModifier);
-            return;
-        } else {
-            point.state = Qt::TouchPointMoved;
-        }
-        point.rawPositions = {{ clientX, clientY }};
-        points.append(point);
-    }
+    if (eventType == QStringLiteral("touchcancel")) {
+        QWindowSystemInterface::handleTouchCancelEvent(window,
+                                                       time,
+                                                       touchDevice,
+                                                       Qt::NoModifier);
+    } else {
+        QList<QWindowSystemInterface::TouchPoint> points;
+        auto touchToPoint = [](const QJsonValue &touch) -> QWindowSystemInterface::TouchPoint {
+            QWindowSystemInterface::TouchPoint point; // support more than one
+            const auto pageX = touch.toObject().value("pageX").toDouble();
+            const auto pageY = touch.toObject().value("pageY").toDouble();
+            const auto radiousX = touch.toObject().value("radiousX").toDouble();
+            const auto radiousY = touch.toObject().value("radiousY").toDouble();
+            const auto clientX = touch.toObject().value("clientX").toDouble();
+            const auto clientY = touch.toObject().value("clientY").toDouble();
+            point.id = touch.toObject().value("identifier").toInt(0);
+            point.pressure = touch.toObject().value("force").toDouble(1.);
+            point.area.setX(pageX - radiousX);
+            point.area.setY(pageY - radiousY);
+            point.area.setWidth(radiousX * 2);
+            point.area.setHeight(radiousY * 2);
+            point.normalPosition.setX(touch.toObject().value("normalPositionX").toDouble());
+            point.normalPosition.setY(touch.toObject().value("normalPositionY").toDouble());
+            point.rawPositions = {{ clientX, clientY }};
+            return point;
+        };
 
-    QWindowSystemInterface::handleTouchEvent(window,
-                                             time,
-                                             touchDevice,
-                                             points,
-                                             Qt::NoModifier);
+        for (const auto &touch : object.value("changedTouches").toArray()) {
+            auto point = touchToPoint(touch);
+            if (eventType == QStringLiteral("touchstart")) {
+                point.state = Qt::TouchPointPressed;
+            } else if (eventType == QStringLiteral("touchend")) {
+                qCDebug(lcWebGL, ) << "end" << object;
+                point.state = Qt::TouchPointReleased;
+            } else {
+                Q_ASSERT(eventType == QStringLiteral("touchmove"));
+                point.state = Qt::TouchPointMoved;
+            }
+            points.append(point);
+        }
+
+        for (const auto &touch : object.value("stationaryTouches").toArray()) {
+            auto point = touchToPoint(touch);
+            point.state = Qt::TouchPointStationary;
+            points.append(point);
+        }
+
+        QWindowSystemInterface::handleTouchEvent(window,
+                                                 time,
+                                                 touchDevice,
+                                                 points,
+                                                 Qt::NoModifier);
+    }
 }
 
 void QWebGLIntegrationPrivate::handleKeyboard(const ClientData &clientData,

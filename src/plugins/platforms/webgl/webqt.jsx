@@ -289,8 +289,9 @@ window.onload = function () {
             object["time"] = new Date().getTime();
             object["event"] = event.type;
             object["changedTouches"] = [];
-            for (var i = 0; i < event.targetTouches.length; ++i) {
-                var changedTouch = event.targetTouches[i];
+            object["stationaryTouches"] = [];
+
+            var addTouch = function(changedTouch, isChanged) {
                 var touch = {};
                 touch["clientX"] = changedTouch.clientX;
                 touch["clientY"] = changedTouch.clientY;
@@ -305,8 +306,26 @@ window.onload = function () {
                 touch["screenY"] = changedTouch.screenY;
                 touch["normalPositionX"] = changedTouch.screenX / screen.width;
                 touch["normalPositionY"] = changedTouch.screenY / screen.height;
-                object.changedTouches.push(touch);
+                if (isChanged)
+                    object.changedTouches.push(touch);
+                else
+                    object.stationaryTouches.push(touch);
+            };
+
+            for (var i = 0; i < event.changedTouches.length; ++i) {
+                var changedTouch = event.changedTouches[i];
+                addTouch(changedTouch, true);
             }
+
+            for (var i = 0; i < event.targetTouches.length; ++i) {
+                var targetTouch = event.targetTouches[i];
+                if (object.changedTouches.findIndex(function(touch){
+                    return touch.identifier === targetTouch.identifier;
+                }) === -1) {
+                    addTouch(targetTouch, false);
+                }
+            }
+
             sendObject(object);
 
             if (event.preventDefault && event.cancelable)
