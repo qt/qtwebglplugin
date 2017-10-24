@@ -660,7 +660,7 @@ window.onload = function () {
         gl.renderbufferStorage = function(target, internalFormat, width, height) {
             var d = contextData[currentContext];
             if (internalFormat === 0x88F0) // GL_DEPTH24_STENCIL8_OES
-                internalformat = 0x84F9; // GL_DEPTH_STENCIL_OES
+                internalFormat = 0x84F9; // GL_DEPTH_STENCIL_OES
             d.renderbufferFormat[d.boundRenderbuffer] = internalFormat;
             gl._renderbufferStorage(target, internalFormat, width, height);
         };
