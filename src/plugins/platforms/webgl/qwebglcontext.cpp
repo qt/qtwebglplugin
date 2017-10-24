@@ -487,9 +487,9 @@ QWEBGL_FUNCTION(activeTexture, void, glActiveTexture,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(attachShader, glAttachShader,
-                          (GLuint) program, (GLuint) shader);
+                          (GLuint) program, (GLuint) shader)
 QWEBGL_FUNCTION_POSTEVENT(bindAttribLocation, glBindAttribLocation,
-                          (GLuint) program, (GLuint) index, (const GLchar *) name);
+                          (GLuint) program, (GLuint) index, (const GLchar *) name)
 
 QWEBGL_FUNCTION(bindBuffer, void, glBindBuffer,
                 (GLenum) target, (GLuint) buffer)
@@ -510,7 +510,7 @@ QWEBGL_FUNCTION(bindFramebuffer, void, glBindFramebuffer,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(bindRenderbuffer, glBindRenderbuffer,
-                          (GLenum) target, (GLuint) renderbuffer);
+                          (GLenum) target, (GLuint) renderbuffer)
 
 QWEBGL_FUNCTION(bindTexture, void, glBindTexture,
                 (GLenum) target, (GLuint) texture)
@@ -521,20 +521,20 @@ QWEBGL_FUNCTION(bindTexture, void, glBindTexture,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(blendColor, glBlendColor,
-                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha);
+                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha)
 
 QWEBGL_FUNCTION_POSTEVENT(blendEquation, glBlendEquation,
-                          (GLenum) mode);
+                          (GLenum) mode)
 
 QWEBGL_FUNCTION_POSTEVENT(blendEquationSeparate, glBlendEquationSeparate,
-                          (GLenum) modeRGB, (GLenum) modeAlpha);
+                          (GLenum) modeRGB, (GLenum) modeAlpha)
 
 QWEBGL_FUNCTION_POSTEVENT(blendFunc, glBlendFunc,
-                          (GLenum) sfactor, (GLenum) dfactor);
+                          (GLenum) sfactor, (GLenum) dfactor)
 
 QWEBGL_FUNCTION_POSTEVENT(blendFuncSeparate, glBlendFuncSeparate,
                           (GLenum) sfactorRGB, (GLenum) dfactorRGB,
-                          (GLenum) sfactorAlpha, (GLenum) dfactorAlpha);
+                          (GLenum) sfactorAlpha, (GLenum) dfactorAlpha)
 
 QWEBGL_FUNCTION(bufferData, void, glBufferData,
                 (GLenum) target, (GLsizeiptr) size, (const void *) data, (GLenum) usage)
@@ -555,21 +555,21 @@ QWEBGL_FUNCTION(checkFramebufferStatus, GLenum, glCheckFramebufferStatus,
     return postEventAndQuery<&checkFramebufferStatus>(0u, target);
 }
 
-QWEBGL_FUNCTION_POSTEVENT(clear, glClear, (GLbitfield) mask);
+QWEBGL_FUNCTION_POSTEVENT(clear, glClear, (GLbitfield) mask)
 
 QWEBGL_FUNCTION_POSTEVENT(clearColor, glClearColor,
-                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha);
+                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha)
 
 QWEBGL_FUNCTION_POSTEVENT(clearDepthf, glClearDepthf,
-                          (GLfloat) d);
+                          (GLfloat) d)
 
 QWEBGL_FUNCTION_POSTEVENT(clearStencil, glClearStencil,
-                          (GLint) s);
+                          (GLint) s)
 
 QWEBGL_FUNCTION_POSTEVENT(colorMask, glColorMask,
-                          (GLboolean) red, (GLboolean) green, (GLboolean) blue, (GLboolean) alpha);
+                          (GLboolean) red, (GLboolean) green, (GLboolean) blue, (GLboolean) alpha)
 
-QWEBGL_FUNCTION_POSTEVENT(compileShader, glCompileShader, (GLuint) shader);
+QWEBGL_FUNCTION_POSTEVENT(compileShader, glCompileShader, (GLuint) shader)
 
 QWEBGL_FUNCTION(compressedTexImage2D, void, glCompressedTexImage2D,
                 (GLenum) target, (GLint) level, (GLenum) internalformat,
@@ -588,11 +588,11 @@ QWEBGL_FUNCTION(compressedTexSubImage2D, void, glCompressedTexSubImage2D,
 
 QWEBGL_FUNCTION_POSTEVENT(copyTexImage2D, glCopyTexImage2D,
                           (GLenum) target, (GLint) level, (GLenum) internalformat,
-                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height, (GLint) border);
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height, (GLint) border)
 
 QWEBGL_FUNCTION_POSTEVENT(copyTexSubImage2D, glCopyTexSubImage2D,
                           (GLenum) target, (GLint) level, (GLint) xoffset, (GLint) yoffset,
-                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height);
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height)
 
 QWEBGL_FUNCTION_NO_PARAMS(createProgram, GLuint, glCreateProgram)
 {
@@ -606,7 +606,7 @@ QWEBGL_FUNCTION(createShader, GLuint, glCreateShader,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(cullFace, glCullFace,
-                          (GLenum) mode);
+                          (GLenum) mode)
 
 QWEBGL_FUNCTION(deleteBuffers, void, glDeleteBuffers,
                 (GLsizei) n, (const GLuint *) buffers)
@@ -627,7 +627,7 @@ QWEBGL_FUNCTION(deleteFramebuffers, void, glDeleteFramebuffers,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(deleteProgram, glDeleteProgram,
-                          (GLuint) program);
+                          (GLuint) program)
 
 QWEBGL_FUNCTION(deleteRenderbuffers, void, glDeleteRenderbuffers,
                 (GLsizei) n, (const GLuint *) renderbuffers)
@@ -636,7 +636,7 @@ QWEBGL_FUNCTION(deleteRenderbuffers, void, glDeleteRenderbuffers,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(deleteShader, glDeleteShader,
-                          (GLuint) shader);
+                          (GLuint) shader)
 
 QWEBGL_FUNCTION(deleteTextures, void, glDeleteTextures,
                 (GLsizei) n, (const GLuint *) textures)
@@ -645,16 +645,16 @@ QWEBGL_FUNCTION(deleteTextures, void, glDeleteTextures,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(depthFunc, glDepthFunc,
-                          (GLenum) func);
+                          (GLenum) func)
 
 QWEBGL_FUNCTION_POSTEVENT(depthMask, glDepthMask,
-                          (GLboolean) flag);
+                          (GLboolean) flag)
 
 QWEBGL_FUNCTION_POSTEVENT(depthRangef, glDepthRangef,
-                          (GLfloat) n, (GLfloat) f);
+                          (GLfloat) n, (GLfloat) f)
 
 QWEBGL_FUNCTION_POSTEVENT(detachShader, glDetachShader,
-                          (GLuint) program, (GLuint) shader);
+                          (GLuint) program, (GLuint) shader)
 
 QWEBGL_FUNCTION(disableVertexAttribArray, void, glDisableVertexAttribArray,
                 (GLuint) index)
@@ -712,14 +712,14 @@ QWEBGL_FUNCTION_NO_PARAMS(flush, void, glFlush)
 
 QWEBGL_FUNCTION_POSTEVENT(framebufferRenderbuffer, glFramebufferRenderbuffer,
                           (GLenum) target, (GLenum) attachment,
-                          (GLenum) renderbuffertarget, (GLuint) renderbuffer);
+                          (GLenum) renderbuffertarget, (GLuint) renderbuffer)
 
 QWEBGL_FUNCTION_POSTEVENT(framebufferTexture2D, glFramebufferTexture2D,
                           (GLenum) target, (GLenum) attachment, (GLenum) textarget,
-                          (GLuint) texture, (GLint) level);
+                          (GLuint) texture, (GLint) level)
 
 QWEBGL_FUNCTION_POSTEVENT(frontFace, glFrontFace,
-                          (GLenum) mode);
+                          (GLenum) mode)
 
 QWEBGL_FUNCTION(genBuffers, void, glGenBuffers,
                 (GLsizei) n, (GLuint *) buffers)
@@ -762,7 +762,7 @@ QWEBGL_FUNCTION(genTextures, void, glGenTextures,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(generateMipmap, glGenerateMipmap,
-                          (GLenum) target);
+                          (GLenum) target)
 
 QWEBGL_FUNCTION(getActiveAttrib, void, glGetActiveAttrib,
                 (GLuint) program, (GLuint) index, (GLsizei) bufSize,
@@ -1079,7 +1079,7 @@ QWEBGL_FUNCTION(getVertexAttribiv, void, glGetVertexAttribiv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(hint, glHint,
-                          (GLenum) target, (GLenum) mode);
+                          (GLenum) target, (GLenum) mode)
 
 QWEBGL_FUNCTION(isBuffer, GLboolean, glIsBuffer,
                 (GLuint) buffer)
@@ -1124,10 +1124,10 @@ QWEBGL_FUNCTION(isTexture, GLboolean, glIsTexture,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(lineWidth, glLineWidth,
-                          (GLfloat) width);
+                          (GLfloat) width)
 
 QWEBGL_FUNCTION_POSTEVENT(linkProgram, glLinkProgram,
-                          (GLuint) program);
+                          (GLuint) program)
 
 QWEBGL_FUNCTION(pixelStorei, void, glPixelStorei,
                 (GLenum) pname, (GLint) param)
@@ -1139,7 +1139,7 @@ QWEBGL_FUNCTION(pixelStorei, void, glPixelStorei,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(polygonOffset, glPolygonOffset,
-                          (GLfloat) factor, (GLfloat) units);
+                          (GLfloat) factor, (GLfloat) units)
 
 QWEBGL_FUNCTION(readPixels, void, glReadPixels,
                 (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height,
@@ -1158,13 +1158,13 @@ QWEBGL_FUNCTION_NO_PARAMS(releaseShaderCompiler, void, glReleaseShaderCompiler)
 
 QWEBGL_FUNCTION_POSTEVENT(renderbufferStorage, glRenderbufferStorage,
                           (GLenum) target, (GLenum) internalformat,
-                          (GLsizei) width, (GLsizei) height);
+                          (GLsizei) width, (GLsizei) height)
 
 QWEBGL_FUNCTION_POSTEVENT(sampleCoverage, glSampleCoverage,
-                          (GLfloat) value, (GLboolean) invert);
+                          (GLfloat) value, (GLboolean) invert)
 
 QWEBGL_FUNCTION_POSTEVENT(scissor, glScissor,
-                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height);
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height)
 
 QWEBGL_FUNCTION(shaderBinary, void, glShaderBinary,
                 (GLsizei), (const GLuint *), (GLenum), (const void *), (GLsizei))
@@ -1190,22 +1190,22 @@ QWEBGL_FUNCTION(shaderSource, void, glShaderSource,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(stencilFunc, glStencilFunc,
-                          (GLenum) func, (GLint) ref, (GLuint) mask);
+                          (GLenum) func, (GLint) ref, (GLuint) mask)
 
 QWEBGL_FUNCTION_POSTEVENT(stencilFuncSeparate, glStencilFuncSeparate,
-                          (GLenum) face, (GLenum) func, (GLint) ref, (GLuint) mask);
+                          (GLenum) face, (GLenum) func, (GLint) ref, (GLuint) mask)
 
 QWEBGL_FUNCTION_POSTEVENT(stencilMask, glStencilMask,
-                          (GLuint) mask);
+                          (GLuint) mask)
 
 QWEBGL_FUNCTION_POSTEVENT(stencilMaskSeparate, glStencilMaskSeparate,
                           (GLenum) face, (GLuint) mask)
 
 QWEBGL_FUNCTION_POSTEVENT(stencilOp, glStencilOp,
-                          (GLenum) fail, (GLenum) zfail, (GLenum) zpass);
+                          (GLenum) fail, (GLenum) zfail, (GLenum) zpass)
 
 QWEBGL_FUNCTION_POSTEVENT(stencilOpSeparate, glStencilOpSeparate,
-                          (GLenum) face, (GLenum) sfail, (GLenum) dpfail, (GLenum) dppass);
+                          (GLenum) face, (GLenum) sfail, (GLenum) dpfail, (GLenum) dppass)
 
 QWEBGL_FUNCTION(texImage2D, void,  glTexImage2D,
                 (GLenum) target, (GLint) level, (GLint) internalformat,
@@ -1220,7 +1220,7 @@ QWEBGL_FUNCTION(texImage2D, void,  glTexImage2D,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(texParameterf, glTexParameterf,
-                          (GLenum) target, (GLenum) pname, (GLfloat) param);
+                          (GLenum) target, (GLenum) pname, (GLfloat) param)
 
 QWEBGL_FUNCTION(texParameterfv, void, glTexParameterfv,
                 (GLenum), (GLenum), (const GLfloat *))
@@ -1229,7 +1229,7 @@ QWEBGL_FUNCTION(texParameterfv, void, glTexParameterfv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(texParameteri, glTexParameteri,
-                          (GLenum) target, (GLenum) pname, (GLint) param);
+                          (GLenum) target, (GLenum) pname, (GLint) param)
 
 QWEBGL_FUNCTION(texParameteriv, void, glTexParameteriv,
                 (GLenum), (GLenum), (const GLint *))
@@ -1249,7 +1249,7 @@ QWEBGL_FUNCTION(texSubImage2D, void, glTexSubImage2D,
                                     : nullptr);
 }
 
-QWEBGL_FUNCTION_POSTEVENT(uniform1f, glUniform1f, (GLint) location, (GLfloat) v0);
+QWEBGL_FUNCTION_POSTEVENT(uniform1f, glUniform1f, (GLint) location, (GLfloat) v0)
 
 QWEBGL_FUNCTION(uniform1fv, void, glUniform1fv,
                 (GLint) location, (GLsizei) count, (const GLfloat *) value)
@@ -1258,7 +1258,7 @@ QWEBGL_FUNCTION(uniform1fv, void, glUniform1fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform1i, glUniform1i,
-                          (GLint) location, (GLint) v0);
+                          (GLint) location, (GLint) v0)
 
 QWEBGL_FUNCTION(uniform1iv, void, glUniform1iv,
                 (GLint) location, (GLsizei) count, (const GLint *) value)
@@ -1267,7 +1267,7 @@ QWEBGL_FUNCTION(uniform1iv, void, glUniform1iv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform2f, glUniform2f,
-                          (GLint) location, (GLfloat) v0, (GLfloat) v1);
+                          (GLint) location, (GLfloat) v0, (GLfloat) v1)
 
 QWEBGL_FUNCTION(uniform2fv, void, glUniform2fv,
                 (GLint) location, (GLsizei) count, (const GLfloat *) value)
@@ -1276,7 +1276,7 @@ QWEBGL_FUNCTION(uniform2fv, void, glUniform2fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform2i, glUniform2i,
-                          (GLint) location, (GLint) v0, (GLint) v1);
+                          (GLint) location, (GLint) v0, (GLint) v1)
 
 QWEBGL_FUNCTION(uniform2iv, void, glUniform2iv,
                 (GLint) location, (GLsizei) count, (const GLint *) value)
@@ -1285,7 +1285,7 @@ QWEBGL_FUNCTION(uniform2iv, void, glUniform2iv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform3f, glUniform3f,
-                          (GLint) location, (GLfloat) v0, (GLfloat) v1, (GLfloat) v2);
+                          (GLint) location, (GLfloat) v0, (GLfloat) v1, (GLfloat) v2)
 
 
 QWEBGL_FUNCTION(uniform3fv, void, glUniform3fv,
@@ -1295,7 +1295,7 @@ QWEBGL_FUNCTION(uniform3fv, void, glUniform3fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform3i, glUniform3i,
-                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2);
+                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2)
 
 QWEBGL_FUNCTION(uniform3iv, void, glUniform3iv,
                 (GLint) location, (GLsizei) count, (const GLint *) value)
@@ -1305,7 +1305,7 @@ QWEBGL_FUNCTION(uniform3iv, void, glUniform3iv,
 
 QWEBGL_FUNCTION_POSTEVENT(uniform4f, glUniform4f,
                           (GLint) location, (GLfloat) v0, (GLfloat) v1,
-                          (GLfloat) v2, (GLfloat) v3);
+                          (GLfloat) v2, (GLfloat) v3)
 
 QWEBGL_FUNCTION(uniform4fv, void, glUniform4fv,
                 (GLint) location, (GLsizei) count, (const GLfloat *) value)
@@ -1314,7 +1314,7 @@ QWEBGL_FUNCTION(uniform4fv, void, glUniform4fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(uniform4i, glUniform4i,
-                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2, (GLint) v3);
+                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2, (GLint) v3)
 
 QWEBGL_FUNCTION(uniform4iv, void, glUniform4iv,
                 (GLint) location, (GLsizei) count, (const GLint *) value)
@@ -1341,13 +1341,13 @@ QWEBGL_FUNCTION(uniformMatrix4fv, void, glUniformMatrix4fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(useProgram, glUseProgram,
-                          (GLuint) program);
+                          (GLuint) program)
 
 QWEBGL_FUNCTION_POSTEVENT(validateProgram, glValidateProgram,
-                          (GLuint) program);
+                          (GLuint) program)
 
 QWEBGL_FUNCTION_POSTEVENT(vertexAttrib1f, glVertexAttrib1f,
-                          (GLuint) index, (GLfloat) x);
+                          (GLuint) index, (GLfloat) x)
 
 QWEBGL_FUNCTION(vertexAttrib1fv, void, glVertexAttrib1fv,
                 (GLuint) index, (const GLfloat *) v)
@@ -1356,7 +1356,7 @@ QWEBGL_FUNCTION(vertexAttrib1fv, void, glVertexAttrib1fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(vertexAttrib2f, glVertexAttrib2f,
-                          (GLuint) index, (GLfloat) x, (GLfloat) y);
+                          (GLuint) index, (GLfloat) x, (GLfloat) y)
 
 QWEBGL_FUNCTION(vertexAttrib2fv, void, glVertexAttrib2fv,
                 (GLuint) index, (const GLfloat *) v)
@@ -1365,7 +1365,7 @@ QWEBGL_FUNCTION(vertexAttrib2fv, void, glVertexAttrib2fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(vertexAttrib3f, glVertexAttrib3f,
-                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z);
+                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z)
 
 QWEBGL_FUNCTION(vertexAttrib3fv, void, glVertexAttrib3fv,
                 (GLuint) index, (const GLfloat *) v)
@@ -1374,7 +1374,7 @@ QWEBGL_FUNCTION(vertexAttrib3fv, void, glVertexAttrib3fv,
 }
 
 QWEBGL_FUNCTION_POSTEVENT(vertexAttrib4f, glVertexAttrib4f,
-                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z, (GLfloat) w);
+                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z, (GLfloat) w)
 
 QWEBGL_FUNCTION(vertexAttrib4fv, void, glVertexAttrib4fv,
                 (GLuint) index, (const GLfloat *) v)
@@ -1411,11 +1411,11 @@ QWEBGL_FUNCTION(viewport, void, glViewport,
 QWEBGL_FUNCTION_POSTEVENT(blitFramebufferEXT, glBlitFramebufferEXT,
                           (GLint) srcX0, (GLint) srcY0, (GLint) srcX1, (GLint) srcY1,
                           (GLint) dstX0, (GLint) dstY0, (GLint) dstX1, (GLint) dstY1,
-                          (GLbitfield) mask, (GLenum) filter);
+                          (GLbitfield) mask, (GLenum) filter)
 
 QWEBGL_FUNCTION_POSTEVENT(renderbufferStorageMultisampleEXT, glRenderbufferStorageMultisampleEXT,
                 (GLenum) target, (GLsizei) samples, (GLenum) internalformat, (GLsizei) width,
-                (GLsizei) height);
+                (GLsizei) height)
 
 QWEBGL_FUNCTION(getTexLevelParameteriv, void, glGetTexLevelParameteriv,
                 (GLenum), (GLint), (GLenum), (GLint *))
