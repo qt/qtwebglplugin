@@ -920,8 +920,19 @@ window.onload = function () {
             console.log("executing " + d.glCommands.length + " commands");
         while (d.glCommands.length) {
             var obj = d.glCommands.shift();
-            if (DEBUG)
-                console.log("Calling: gl." + obj.function, obj.parameters);
+            if (DEBUG) {
+                var parameters = [];
+                for (var key in obj.parameters) {
+                    if (typeof obj.parameters[key] === 'number' &&
+                        d.glConstants[obj.parameters[key]] !== undefined) {
+                        parameters[key] = d.glConstants[obj.parameters[key]] + ' (' +
+                                          obj.parameters[key] + ')';
+                    } else {
+                        parameters[key] = obj.parameters[key];
+                    }
+                }
+                console.log("Calling: gl." + obj.function, parameters);
+            }
             var response = gl[obj.function].apply(gl, obj.parameters);
             if (response !== undefined)
                 sendResponse(obj.id, response);
@@ -1017,10 +1028,20 @@ window.onload = function () {
                 gl = windowData[winId].gl;
                 currentWindowId = winId;
                 currentContext = obj.parameters[0];
-                if (DEBUG)
-                    console.log("Current context is now " + currentContext);
                 if (currentContext)
                     ensureContextData(currentContext);
+                if (DEBUG) {
+                    console.log("Current context is now " + currentContext);
+                    var d = contextData[currentContext];
+                    if (d.glConstants === undefined) {
+                        d.glConstants = {};
+                        for (var key in gl) {
+                            if (typeof gl[key] === 'number') {
+                                d.glConstants[gl[key]] = 'gl.' + key;
+                            }
+                        }
+                    }
+                }
             }
         } else if (obj.function === "swapBuffers") {
             var data =  windowData[currentWindowId];
