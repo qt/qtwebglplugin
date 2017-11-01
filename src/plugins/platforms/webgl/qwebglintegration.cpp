@@ -53,7 +53,6 @@
 #include <QtGui/qpa/qplatformwindow.h>
 #include <QtGui/private/qguiapplication_p.h>
 #include <QtGui/qpa/qwindowsysteminterface.h>
-#include <QtPlatformCompositorSupport/private/qopenglcompositorbackingstore_p.h>
 #include <QtThemeSupport/private/qgenericunixthemes_p.h>
 #include <QtWebSockets/qwebsocket.h>
 

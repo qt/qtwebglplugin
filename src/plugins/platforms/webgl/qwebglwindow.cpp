@@ -39,7 +39,6 @@
 #include <QtGui/qpa/qwindowsysteminterface.h>
 #include <QtGui/qpa/qplatformintegration.h>
 #include <QtGui/qopenglcontext.h>
-#include <QtPlatformCompositorSupport/private/qopenglcompositorbackingstore_p.h>
 
 #include "qwebglwindow.h"
 
