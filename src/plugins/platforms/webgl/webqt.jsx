@@ -498,8 +498,14 @@ window.onload = function () {
             // the depth and stencil attachment points. WebGL does not allow this. Instead,
             // we need to attach to the DEPTH_STENCIL attachment point.
             if (d.renderbufferFormat[d.boundRenderbuffer] === gl.DEPTH_STENCIL) {
-                if (attachment === gl.STENCIL_ATTACHMENT)
+                if (attachment === gl.STENCIL_ATTACHMENT) {
                     attachment = gl.DEPTH_STENCIL_ATTACHMENT;
+                } else {
+                    // Ignore this call. Qt Quick will send a new call with STENCIL_ATTACHMENT
+                    // parameter, it will be replaced by DEPTH_STENCIL_ATTACHMENT to work-around the
+                    // browser limitation.
+                    return;
+                }
             }
             gl._framebufferRenderbuffer(target, attachment, renderbuffertarget,
                                         d.renderbufferMap[renderbuffer]);
