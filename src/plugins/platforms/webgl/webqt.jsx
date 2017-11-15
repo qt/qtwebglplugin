@@ -409,7 +409,7 @@ window.onload = function () {
 
         gl._bufferData = gl.bufferData;
         gl.bufferData = function(target, usage, size, data) {
-            gl._bufferData(target, data.length === 0 ? size : data, usage);
+            gl._bufferData(target, data === null || data.length === 0 ? size : data, usage);
         };
 
         gl._clearColor = gl.clearColor;
