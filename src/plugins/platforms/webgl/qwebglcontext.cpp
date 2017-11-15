@@ -546,7 +546,7 @@ QWEBGL_FUNCTION(bufferData, void, glBufferData,
 QWEBGL_FUNCTION(bufferSubData, void, glBufferSubData,
                 (GLenum) target, (GLintptr) offset, (GLsizeiptr) size, (const void *) data)
 {
-    postEvent<&bufferSubData>(target, int(size), int(offset), QByteArray((const char *)data, size));
+    postEvent<&bufferSubData>(target, int(offset), QByteArray((const char *)data, size));
 }
 
 QWEBGL_FUNCTION(checkFramebufferStatus, GLenum, glCheckFramebufferStatus,
