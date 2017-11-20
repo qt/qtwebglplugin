@@ -29,6 +29,7 @@
 
 #include "qwebglwebsocketserver.h"
 
+#include "qwebglcontext.h"
 #include "qwebglfunctioncall.h"
 #include "qwebglintegration.h"
 #include "qwebglintegration_p.h"
@@ -166,16 +167,21 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
         qCDebug(lc) << "Sending connect to " << socket << values;
         break;
     case MessageType::GlCommand: {
-        const quint32 id = values["id"].toUInt();
         const auto functionName = values["function"].toString().toUtf8();
         const auto parameters = values["parameters"].toList();
         const quint32 parameterCount = parameters.size();
-        qCDebug(lc, "Sending gl_command %s (%d) to %p with %d parameters",
-                qPrintable(functionName), id, socket, parameterCount);
+        qCDebug(lc, "Sending gl_command %s to %p with %d parameters",
+                qPrintable(functionName), socket, parameterCount);
         QByteArray data;
         {
             QDataStream stream(&data, QIODevice::WriteOnly);
-            stream << id << functionName << parameterCount;
+            stream << functionName;
+            if (values.contains("id")) {
+                auto ok = false;
+                stream << quint32(values["id"].toUInt(&ok));
+                Q_ASSERT(ok);
+            }
+            stream << parameterCount;
             for (const auto &value : qAsConst(parameters)) {
                 if (value.isNull()) {
                     stream << (quint8)'n';
@@ -197,7 +203,7 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
                     break;
                 case QVariant::ByteArray: {
                     const auto byteArray = value.toByteArray();
-                    if (data.isNull())
+                    if (byteArray.isNull())
                         stream << (quint8)'n';
                     else
                         stream << (quint8)'x' << byteArray;
@@ -251,11 +257,12 @@ bool QWebGLWebSocketServer::event(QEvent *event)
     int type = event->type();
     if (type == QWebGLFunctionCall::type()) {
         auto e = static_cast<QWebGLFunctionCall *>(event);
-        const QVariantMap values {
+        QVariantMap values {
            { "function", e->functionName() },
-           { "id", e->id() },
            { "parameters", e->parameters() }
         };
+        if (e->id() != -1)
+            values.insert("id", e->id());
         auto integrationPrivate = QWebGLIntegrationPrivate::instance();
         auto clientData = integrationPrivate->findClientData(e->surface());
         if (clientData && clientData->socket) {
@@ -279,14 +286,28 @@ void QWebGLWebSocketServer::onNewConnection()
                 &QWebGLWebSocketServer::onTextMessageReceived);
 
         const QVariantMap values{
-            { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },
-            { QStringLiteral("buildCpuArchitecture"), QSysInfo::buildCpuArchitecture() },
-            { QStringLiteral("currentCpuArchitecture"), QSysInfo::currentCpuArchitecture() },
-            { QStringLiteral("kernelType"), QSysInfo::kernelType() },
-            { QStringLiteral("machineHostName"), QSysInfo::machineHostName() },
-            { QStringLiteral("prettyProductName"), QSysInfo::prettyProductName() },
-            { QStringLiteral("productType"), QSysInfo::productType() },
-            { QStringLiteral("productVersion"), QSysInfo::productVersion() }
+            {
+                QStringLiteral("debug"),
+#ifdef QT_DEBUG
+                true
+#else
+                false
+#endif
+            },
+            { QStringLiteral("loadingScreen"), qgetenv("QT_WEBGL_LOADINGSCREEN") },
+            { "sysinfo",
+                QVariantMap {
+                    { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },
+                    { QStringLiteral("buildCpuArchitecture"), QSysInfo::buildCpuArchitecture() },
+                    { QStringLiteral("currentCpuArchitecture"),
+                      QSysInfo::currentCpuArchitecture() },
+                    { QStringLiteral("kernelType"), QSysInfo::kernelType() },
+                    { QStringLiteral("machineHostName"), QSysInfo::machineHostName() },
+                    { QStringLiteral("prettyProductName"), QSysInfo::prettyProductName() },
+                    { QStringLiteral("productType"), QSysInfo::productType() },
+                    { QStringLiteral("productVersion"), QSysInfo::productVersion() }
+                }
+            }
         };
 
         sendMessage(socket, MessageType::Connect, values);

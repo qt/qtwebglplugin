@@ -37,6 +37,7 @@
 #include "qwebglwindow_p.h"
 
 #include <QtCore/qhash.h>
+#include <QtCore/qpair.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qset.h>
 #include <QtGui/private/qguiapplication_p.h>
@@ -51,6 +52,19 @@
 QT_BEGIN_NAMESPACE
 
 static Q_LOGGING_CATEGORY(lc, "qt.qpa.webgl.context")
+
+class QWebGLContextPrivate
+{
+public:
+    int id = -1;
+    static QAtomicInt nextId;
+    static QSet<int> waitingIds;
+    QPlatformSurface *currentSurface = nullptr;
+    QSurfaceFormat surfaceFormat;
+};
+
+QAtomicInt QWebGLContextPrivate::nextId(1);
+QSet<int> QWebGLContextPrivate::waitingIds;
 
 struct PixelStorageModes
 {
@@ -177,11 +191,6 @@ static void unlockMutex()
     mutex->unlock();
 }
 
-static QVariant queryValue(int id)
-{
-    return QWebGLContext::queryValue(id);
-}
-
 static int elementSize(GLenum type)
 {
     switch (type) {
@@ -236,465 +245,431 @@ static void setVertexAttribs(QWebGLFunctionCall *event, GLsizei count)
     }
 }
 
-namespace QWebGL {
-
-static void glActiveTexture(GLenum texture)
+template<class POINTER, class SIZE>
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const QPair<POINTER*, SIZE> &elements)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("activeTexture"));
-    if (!event)
-        return;
-    event->addInt(texture);
+    if (e) {
+        for (auto i = 0; i < elements.second; ++i)
+            e->add(elements.first[i]);
+    }
+    return e;
+}
+
+template<class T>
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const T &value)
+{
+    if (e)
+        e->add(value);
+    return e;
+}
+
+template<class T, class... Ts>
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const T &value, const Ts&... rest)
+{
+    if (e) {
+        e->add(value);
+        addHelper(e, rest...);
+    }
+    return e;
+}
+
+template<class T>
+static T queryValue(int id, const T &defaultValue = T())
+{
+    const auto variant = currentContext()->queryValue(id);
+    if (variant.isNull())
+        return defaultValue;
+    if (!variant.canConvert<T>()) {
+        qCWarning(lc, "Cannot convert %s to " QT_STRINGIFY(T), variant.typeName());
+        return defaultValue;
+    }
+    return variant.value<T>();
+}
+
+struct GLFunction;
+static QHash<QString, const GLFunction *> glFunctions;
+
+template<typename T>
+struct ParameterTypeTraits {
+    static int typeId() { return qMetaTypeId<T>(); }
+    static bool isArray() { return std::is_pointer<T>(); }
+};
+
+template<typename T>
+struct ParameterTypeTraits<T*> : ParameterTypeTraits<T> {
+    static int typeId() { return qMetaTypeId<T>(); }
+};
+
+template<typename T>
+struct ParameterTypeTraits<const T*> : ParameterTypeTraits<T*> {
+};
+
+template<typename T>
+struct ParameterTypeTraits<const T**> : ParameterTypeTraits<T*> {
+};
+
+struct GLFunction
+{
+    struct Parameter {
+        Parameter() {}
+        Parameter(const QString &name, const QString &typeName, int typeId, bool isArray) :
+            name(name), typeName(typeName), typeId(typeId), isArray(isArray) {}
+
+        QString name;
+        QString typeName;
+        int typeId;
+        bool isArray;
+    };
+
+    using ParameterList = QVector<Parameter>;
+
+    GLFunction(const QString &remoteName,
+               const QString &localName,
+               QFunctionPointer functionPointer,
+               ParameterList parameters = ParameterList())
+        : remoteName(remoteName), localName(localName),
+          functionPointer(functionPointer), parameters(parameters)
+    {
+        Q_ASSERT(!glFunctions.contains(localName));
+        glFunctions.insert(localName, this);
+    }
+
+    GLFunction(const QString &name) : GLFunction(name, name, nullptr)
+    {}
+
+    const QString remoteName;
+    const QString localName;
+    const QFunctionPointer functionPointer;
+    const ParameterList parameters;
+};
+
+template<const GLFunction *Function>
+static QWebGLFunctionCall *createEventImpl(bool wait)
+{
+    auto context = QOpenGLContext::currentContext();
+    Q_ASSERT(context);
+    const auto handle = static_cast<QWebGLContext *>(context->handle());
+    auto integrationPrivate = QWebGLIntegrationPrivate::instance();
+    const auto clientData = integrationPrivate->findClientData(handle->currentSurface());
+    if (!clientData || !clientData->socket
+            || clientData->socket->state() != QAbstractSocket::ConnectedState)
+        return nullptr;
+    return new QWebGLFunctionCall(Function->remoteName, handle->currentSurface(), wait);
+}
+
+static void postEventImpl(QWebGLFunctionCall *event)
+{
+    if (event->isBlocking())
+        QWebGLContextPrivate::waitingIds.insert(event->id());
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+}
+
+template<const GLFunction *Function, class... Ts>
+static QWebGLFunctionCall *createEventAndPostImpl(bool wait, Ts&&... arguments)
+{
+    auto event = createEventImpl<Function>(wait);
+    if (event) {
+        addHelper(event, arguments...);
+        postEventImpl(event);
+    }
+    return event;
+}
+
+template<const GLFunction *Function>
+static QWebGLFunctionCall *createEventAndPostImpl(bool wait)
+{
+    auto event = createEventImpl<Function>(wait);
+    if (event)
+        postEventImpl(event);
+    return event;
+}
+
+template<const GLFunction *Function, class... Ts>
+inline QWebGLFunctionCall *postEventImpl(bool wait, Ts&&... arguments)
+{
+    return createEventAndPostImpl<Function>(wait, arguments...);
+}
+
+template<const GLFunction *Function>
+inline QWebGLFunctionCall *postEvent(bool wait)
+{
+    return createEventAndPostImpl<Function>(wait);
+}
+
+template<const GLFunction *Function, class...Ts>
+inline QWebGLFunctionCall *postEvent(Ts&&... arguments)
+{
+    return postEventImpl<Function>(false, arguments...);
+}
+
+template<const GLFunction *Function, class ReturnType, class...Ts>
+static ReturnType postEventAndQuery(ReturnType defaultValue,
+                                    Ts&&... arguments)
+{
+    const auto event = postEventImpl<Function>(true, arguments...);
+    return event ? queryValue(event->id(), defaultValue) : defaultValue;
+}
+
+namespace QWebGL {
+#define EXPAND(x) x
+
+#define USE_(...) __VA_ARGS__
+#define IGNORE_(...)
+
+
+// Retrieve the type
+// TYPEOF( (type) name ) -> TYPEOF_( SEPARATE (type) name ) -> FIRST_ARG( type, name ) -> type
+#define FIRST_ARG(ONE, ...) ONE
+#define SEPARATE(ITEM) ITEM,
+#define TYPEOF_(...) EXPAND(FIRST_ARG(__VA_ARGS__))
+#define TYPEOF(ITEM) TYPEOF_(SEPARATE ITEM)
+
+// Strip off the type, leaving just the parameter name:
+#define STRIP(ITEM) IGNORE_ ITEM
+// PAIR( (type) name ) -> type name
+#define PAIR(ITEM) USE_ ITEM
+
+// Make a FOREACH macro
+#define FOR_1(EACH, ITEM) EACH(ITEM)
+#define FOR_2(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_1(EACH, __VA_ARGS__))
+#define FOR_3(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_2(EACH, __VA_ARGS__))
+#define FOR_4(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_3(EACH, __VA_ARGS__))
+#define FOR_5(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_4(EACH, __VA_ARGS__))
+#define FOR_6(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_5(EACH, __VA_ARGS__))
+#define FOR_7(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_6(EACH, __VA_ARGS__))
+#define FOR_8(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_7(EACH, __VA_ARGS__))
+#define FOR_9(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_8(EACH, __VA_ARGS__))
+#define FOR_10(EACH, ITEM, ...) EACH(ITEM), EXPAND(FOR_9(EACH, __VA_ARGS__))
+//... repeat as needed
+
+#define SELECT_BY_COUNT(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, NAME, ...) NAME
+#define FOR_EACH(action, ...) \
+  EXPAND(SELECT_BY_COUNT(__VA_ARGS__, FOR_10, FOR_9, FOR_8, FOR_7, \
+    FOR_6, FOR_5, FOR_4, FOR_3, FOR_2, FOR_1)(action, __VA_ARGS__))
+
+#define QWEBGL_FUNCTION_PARAMETER(ITEM) \
+    GLFunction::Parameter { \
+        QStringLiteral(QT_STRINGIFY(STRIP(ITEM))), \
+        QStringLiteral(QT_STRINGIFY(TYPEOF(ITEM))), \
+        ParameterTypeTraits<TYPEOF(ITEM)>::typeId(), \
+        ParameterTypeTraits<TYPEOF(ITEM)>::isArray() \
+    }
+
+#define QWEBGL_FUNCTION(REMOTE_NAME, RET_TYPE, LOCAL_NAME, ...) \
+    RET_TYPE LOCAL_NAME(FOR_EACH(TYPEOF, __VA_ARGS__));\
+    extern const GLFunction REMOTE_NAME { \
+        #REMOTE_NAME, \
+        #LOCAL_NAME, \
+        (QFunctionPointer) LOCAL_NAME, \
+        GLFunction::ParameterList({FOR_EACH(QWEBGL_FUNCTION_PARAMETER, __VA_ARGS__)}) \
+    }; \
+    RET_TYPE LOCAL_NAME(FOR_EACH(PAIR, __VA_ARGS__))
+
+#define QWEBGL_FUNCTION_NO_PARAMS(REMOTE_NAME, RET_TYPE, LOCAL_NAME) \
+    RET_TYPE LOCAL_NAME();\
+    extern const GLFunction REMOTE_NAME { \
+        #REMOTE_NAME, \
+        #LOCAL_NAME, \
+        (QFunctionPointer) LOCAL_NAME \
+    }; \
+    RET_TYPE LOCAL_NAME()
+
+#define QWEBGL_FUNCTION_POSTEVENT(REMOTE_NAME, LOCAL_NAME, ...) \
+    QWEBGL_FUNCTION(REMOTE_NAME, void, LOCAL_NAME, __VA_ARGS__) { \
+        postEvent<&REMOTE_NAME>(FOR_EACH(STRIP, __VA_ARGS__)); \
+    }
+
+QWEBGL_FUNCTION(activeTexture, void, glActiveTexture,
+                (GLenum) texture)
+{
+    postEvent<&activeTexture>(texture);
     currentContextData()->activeTextureUnit = texture;
 }
 
-static void glAttachShader(GLuint program, GLuint shader)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("attachShader"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    event->addUInt(shader);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(attachShader, glAttachShader,
+                          (GLuint) program, (GLuint) shader)
+QWEBGL_FUNCTION_POSTEVENT(bindAttribLocation, glBindAttribLocation,
+                          (GLuint) program, (GLuint) index, (const GLchar *) name)
 
-static void glBindAttribLocation(GLuint program, GLuint index, const GLchar * name)
+QWEBGL_FUNCTION(bindBuffer, void, glBindBuffer,
+                (GLenum) target, (GLuint) buffer)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("bindAttribLocation"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    event->addUInt(index);
-    event->addString(name);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glBindBuffer(GLenum target, GLuint buffer)
-{
+    postEvent<&bindBuffer>(target, buffer);
     if (target == GL_ARRAY_BUFFER)
         currentContextData()->boundArrayBuffer = buffer;
     if (target == GL_ELEMENT_ARRAY_BUFFER)
         currentContextData()->boundElementArrayBuffer = buffer;
-
-    auto event = currentContext()->createEvent(QStringLiteral("bindBuffer"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addUInt(buffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glBindFramebuffer(GLenum target, GLuint framebuffer)
+QWEBGL_FUNCTION(bindFramebuffer, void, glBindFramebuffer,
+                (GLenum) target, (GLuint) framebuffer)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("bindFramebuffer"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addUInt(framebuffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-
+    postEvent<&bindFramebuffer>(target, framebuffer);
     if (target == GL_FRAMEBUFFER)
         currentContextData()->boundDrawFramebuffer = framebuffer;
 }
 
-static void glBindRenderbuffer(GLenum target, GLuint renderbuffer)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("bindRenderbuffer"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addUInt(renderbuffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(bindRenderbuffer, glBindRenderbuffer,
+                          (GLenum) target, (GLuint) renderbuffer)
 
-static void glBindTexture(GLenum target, GLuint texture)
+QWEBGL_FUNCTION(bindTexture, void, glBindTexture,
+                (GLenum) target, (GLuint) texture)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("bindTexture"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addUInt(texture);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&bindTexture>(target, texture);
     if (target == GL_TEXTURE_2D)
         currentContextData()->boundTexture2D = texture;
 }
 
-static void glBlendColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
+QWEBGL_FUNCTION_POSTEVENT(blendColor, glBlendColor,
+                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha)
+
+QWEBGL_FUNCTION_POSTEVENT(blendEquation, glBlendEquation,
+                          (GLenum) mode)
+
+QWEBGL_FUNCTION_POSTEVENT(blendEquationSeparate, glBlendEquationSeparate,
+                          (GLenum) modeRGB, (GLenum) modeAlpha)
+
+QWEBGL_FUNCTION_POSTEVENT(blendFunc, glBlendFunc,
+                          (GLenum) sfactor, (GLenum) dfactor)
+
+QWEBGL_FUNCTION_POSTEVENT(blendFuncSeparate, glBlendFuncSeparate,
+                          (GLenum) sfactorRGB, (GLenum) dfactorRGB,
+                          (GLenum) sfactorAlpha, (GLenum) dfactorAlpha)
+
+QWEBGL_FUNCTION(bufferData, void, glBufferData,
+                (GLenum) target, (GLsizeiptr) size, (const void *) data, (GLenum) usage)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("blendColor"));
-    if (!event)
-        return;
-    event->addFloat(red);
-    event->addFloat(green);
-    event->addFloat(blue);
-    event->addFloat(alpha);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&bufferData>(target, usage, int(size), data ? QByteArray((const char *)data, size)
+                                                          : QByteArray());
 }
 
-static void glBlendEquation(GLenum mode)
+QWEBGL_FUNCTION(bufferSubData, void, glBufferSubData,
+                (GLenum) target, (GLintptr) offset, (GLsizeiptr) size, (const void *) data)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("blendEquation"));
-    if (!event)
-        return;
-    event->addInt(mode);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&bufferSubData>(target, int(offset), QByteArray((const char *)data, size));
 }
 
-static void glBlendEquationSeparate(GLenum modeRGB, GLenum modeAlpha)
+QWEBGL_FUNCTION(checkFramebufferStatus, GLenum, glCheckFramebufferStatus,
+                (GLenum) target)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("blendEquationSeparate"));
-    if (!event)
-        return;
-    event->addInt(modeRGB);
-    event->addInt(modeAlpha);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    return postEventAndQuery<&checkFramebufferStatus>(0u, target);
 }
 
-static void glBlendFunc(GLenum sfactor, GLenum dfactor)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("blendFunc"));
-    if (!event)
-        return;
-    event->addInt(sfactor);
-    event->addInt(dfactor);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+QWEBGL_FUNCTION_POSTEVENT(clear, glClear, (GLbitfield) mask)
+
+QWEBGL_FUNCTION_POSTEVENT(clearColor, glClearColor,
+                          (GLfloat) red, (GLfloat) green, (GLfloat) blue, (GLfloat) alpha)
+
+QWEBGL_FUNCTION_POSTEVENT(clearDepthf, glClearDepthf,
+                          (GLfloat) d)
+
+QWEBGL_FUNCTION_POSTEVENT(clearStencil, glClearStencil,
+                          (GLint) s)
+
+QWEBGL_FUNCTION_POSTEVENT(colorMask, glColorMask,
+                          (GLboolean) red, (GLboolean) green, (GLboolean) blue, (GLboolean) alpha)
+
+QWEBGL_FUNCTION_POSTEVENT(compileShader, glCompileShader, (GLuint) shader)
+
+QWEBGL_FUNCTION(compressedTexImage2D, void, glCompressedTexImage2D,
+                (GLenum) target, (GLint) level, (GLenum) internalformat,
+                (GLsizei) width, (GLsizei) height, (GLint) border,
+                (GLsizei) imageSize, (const void *) data) {
+    postEvent<&compressedTexImage2D>(target, level, internalformat, width, height, border,
+                                     imageSize, QByteArray((const char *) data, imageSize));
 }
 
-static void glBlendFuncSeparate(GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha,
-                                GLenum dfactorAlpha)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("blendFuncSeparate"));
-    if (!event)
-        return;
-    event->addInt(sfactorRGB);
-    event->addInt(dfactorRGB);
-    event->addInt(sfactorAlpha);
-    event->addInt(dfactorAlpha);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+QWEBGL_FUNCTION(compressedTexSubImage2D, void, glCompressedTexSubImage2D,
+                (GLenum) target, (GLint) level, (GLint) xoffset, (GLint) yoffset,
+                (GLsizei) width, (GLsizei) height, (GLenum) format,
+                (GLsizei) imageSize, (const void *) data) {
+    postEvent<&compressedTexSubImage2D>(target, level, xoffset, yoffset, width, height, format, imageSize, QByteArray((const char *)data, imageSize));
 }
 
-static void glBufferData(GLenum target, GLsizeiptr size, const void * data, GLenum usage)
+QWEBGL_FUNCTION_POSTEVENT(copyTexImage2D, glCopyTexImage2D,
+                          (GLenum) target, (GLint) level, (GLenum) internalformat,
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height, (GLint) border)
+
+QWEBGL_FUNCTION_POSTEVENT(copyTexSubImage2D, glCopyTexSubImage2D,
+                          (GLenum) target, (GLint) level, (GLint) xoffset, (GLint) yoffset,
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height)
+
+QWEBGL_FUNCTION_NO_PARAMS(createProgram, GLuint, glCreateProgram)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("bufferData"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(usage);
-    event->addInt(size);
-    if (data)
-        event->addData(QByteArray((const char *)data, size));
-    else
-        event->addData(QByteArray());
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    return postEventAndQuery<&createProgram>(0u);
 }
 
-static void glBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, const void * data)
+QWEBGL_FUNCTION(createShader, GLuint, glCreateShader,
+                (GLenum) type)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("bufferSubData"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(size);
-    event->addInt(offset);
-    event->addData(QByteArray((const char *)data, size));
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    return postEventAndQuery<&createShader>(0u, type);
 }
 
-static GLenum glCheckFramebufferStatus(GLenum target)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("checkFramebufferStatus"), true);
-    if (!event) return -1;
-    const auto id =  event->id();
-    event->addInt(target);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    auto value = queryValue(id).toInt();
-    return value;
-}
+QWEBGL_FUNCTION_POSTEVENT(cullFace, glCullFace,
+                          (GLenum) mode)
 
-static void glClear(GLbitfield mask)
+QWEBGL_FUNCTION(deleteBuffers, void, glDeleteBuffers,
+                (GLsizei) n, (const GLuint *) buffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("clear"));
-    if (!event)
-        return;
-    event->addInt(mask);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glClearColor(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("clearColor"));
-    if (!event)
-        return;
-    event->addFloat(red);
-    event->addFloat(green);
-    event->addFloat(blue);
-    event->addFloat(alpha);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glClearDepthf(GLfloat d)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("clearDepthf"));
-    if (!event)
-        return;
-    event->addFloat(d);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glClearStencil(GLint s)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("clearStencil"));
-    if (!event)
-        return;
-    event->addInt(s);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glColorMask(GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("colorMask"));
-    if (!event)
-        return;
-    event->addInt(red);
-    event->addInt(green);
-    event->addInt(blue);
-    event->addInt(alpha);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glCompileShader(GLuint shader)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("compileShader"));
-    if (!event)
-        return;
-    event->addUInt(shader);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glCompressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
-                                   GLsizei width, GLsizei height, GLint border,
-                                   GLsizei imageSize, const void * data)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("compressedTexImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(internalformat);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(border);
-    event->addInt(imageSize);
-    event->addData(QByteArray((const char *) data, imageSize));
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
-                                      GLsizei width, GLsizei height, GLenum format,
-                                      GLsizei imageSize, const void * data)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("compressedTexSubImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(xoffset);
-    event->addInt(yoffset);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(format);
-    event->addInt(imageSize);
-    event->addData(QByteArray((const char *) data, imageSize));
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glCopyTexImage2D(GLenum target, GLint level, GLenum internalformat, GLint x,
-                             GLint y, GLsizei width, GLsizei height, GLint border)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("copyTexImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(internalformat);
-    event->addInt(x);
-    event->addInt(y);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(border);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
-                                GLint x, GLint y, GLsizei width, GLsizei height)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("copyTexSubImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(xoffset);
-    event->addInt(yoffset);
-    event->addInt(x);
-    event->addInt(y);
-    event->addInt(width);
-    event->addInt(height);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static GLuint glCreateProgram()
-{
-    auto event = currentContext()->createEvent(QStringLiteral("createProgram"), true);
-    if (!event) return -1;
-    const auto id =  event->id();
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toUInt();
-    return value;
-}
-
-static GLuint glCreateShader(GLenum type)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("createShader"), true);
-    if (!event) return -1;
-    const auto id =  event->id();
-    event->addInt(type);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toUInt();
-    return value;
-}
-
-static void glCullFace(GLenum mode)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("cullFace"));
-    if (!event)
-        return;
-    event->addInt(mode);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glDeleteBuffers(GLsizei n, const GLuint * buffers)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("deleteBuffers"));
-    if (!event)
-        return;
-    event->addInt(n);
+    postEvent<&deleteBuffers>(n, qMakePair(buffers, n));
     for (int i = 0; i < n; ++i) {
-        event->addUInt(buffers[i]);
         if (currentContextData()->boundArrayBuffer == buffers[i])
             currentContextData()->boundArrayBuffer = 0;
         if (currentContextData()->boundElementArrayBuffer == buffers[i])
             currentContextData()->boundElementArrayBuffer = 0;
     }
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glDeleteFramebuffers(GLsizei n, const GLuint * framebuffers)
+QWEBGL_FUNCTION(deleteFramebuffers, void, glDeleteFramebuffers,
+                (GLsizei) n, (const GLuint *) framebuffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("deleteFramebuffers"));
-    if (!event)
-        return;
-    event->addInt(n);
-    for (int i = 0; i < n; ++i)
-        event->addUInt(framebuffers[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&deleteFramebuffers>(n, qMakePair(framebuffers, n));
 }
 
-static void glDeleteProgram(GLuint program)
+QWEBGL_FUNCTION_POSTEVENT(deleteProgram, glDeleteProgram,
+                          (GLuint) program)
+
+QWEBGL_FUNCTION(deleteRenderbuffers, void, glDeleteRenderbuffers,
+                (GLsizei) n, (const GLuint *) renderbuffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("deleteProgram"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&deleteRenderbuffers>(n, qMakePair(renderbuffers, n));
 }
 
-static void glDeleteRenderbuffers(GLsizei n, const GLuint * renderbuffers)
+QWEBGL_FUNCTION_POSTEVENT(deleteShader, glDeleteShader,
+                          (GLuint) shader)
+
+QWEBGL_FUNCTION(deleteTextures, void, glDeleteTextures,
+                (GLsizei) n, (const GLuint *) textures)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("deleteRenderbuffers"));
-    if (!event)
-        return;
-    event->addInt(n);
-    for (int i = 0; i < n; ++i)
-        event->addUInt(renderbuffers[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&deleteTextures>(n, qMakePair(textures, n));
 }
 
-static void glDeleteShader(GLuint shader)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("deleteShader"));
-    if (!event)
-        return;
-    event->addUInt(shader);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(depthFunc, glDepthFunc,
+                          (GLenum) func)
 
-static void glDeleteTextures(GLsizei n, const GLuint * textures)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("deleteTextures"));
-    if (!event)
-        return;
-    event->addInt(n);
-    for (int i = 0; i < n; ++i)
-        event->addUInt(textures[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(depthMask, glDepthMask,
+                          (GLboolean) flag)
 
-static void glDepthFunc(GLenum func)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("depthFunc"));
-    if (!event)
-        return;
-    event->addInt(func);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(depthRangef, glDepthRangef,
+                          (GLfloat) n, (GLfloat) f)
 
-static void glDepthMask(GLboolean flag)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("depthMask"));
-    if (!event)
-        return;
-    event->addInt(flag);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(detachShader, glDetachShader,
+                          (GLuint) program, (GLuint) shader)
 
-static void glDepthRangef(GLfloat n, GLfloat f)
+QWEBGL_FUNCTION(disableVertexAttribArray, void, glDisableVertexAttribArray,
+                (GLuint) index)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("depthRangef"));
-    if (!event)
-        return;
-    event->addFloat(n);
-    event->addFloat(f);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glDetachShader(GLuint program, GLuint shader)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("detachShader"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    event->addUInt(shader);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glDisableVertexAttribArray(GLuint index)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("disableVertexAttribArray"));
-    if (!event)
-        return;
+    postEvent<&disableVertexAttribArray>(index);
     currentContextData()->vertexAttribPointers[index].enabled = false;
-    event->addUInt(index);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glDrawArrays(GLenum mode, GLint first, GLsizei count)
+QWEBGL_FUNCTION(drawArrays, void, glDrawArrays,
+                (GLenum) mode, (GLint) first, (GLsizei) count)
 {
     auto event = currentContext()->createEvent(QStringLiteral("drawArrays"));
     if (!event)
         return;
-    event->addInt(mode);
-    event->addInt(first);
-    event->addInt(count);
+    event->addParameters(mode, first, count);
     // Some vertex attributes may be client-side, others may not. Therefore
     // client-side ones need to transfer the data starting from the base
     // pointer, not just from 'first'.
@@ -702,183 +677,103 @@ static void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glDrawElements(GLenum mode, GLsizei count, GLenum type, const void * indices)
+QWEBGL_FUNCTION(drawElements, void, glDrawElements,
+                (GLenum) mode, (GLsizei) count, (GLenum) type, (const void *) indices)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("drawElements"), false);
+    auto event = currentContext()->createEvent(QStringLiteral("drawElements"));
     if (!event)
         return;
-    event->addInt(mode);
-    event->addInt(count);
-    event->addInt(type);
+    event->addParameters(mode, count, type);
     setVertexAttribs(event, count);
     ContextData *d = currentContextData();
-    if (d->boundElementArrayBuffer == 0) {
-        event->addInt(0);
-        QByteArray data((const char *) indices, count * elementSize(type));
-        event->addData(data.data());
-    } else {
-        event->addInt(1);
-        event->addUInt((quintptr) indices);
-    }
-
+    if (d->boundElementArrayBuffer == 0)
+        event->addParameters(0, QByteArray((const char *) indices, count * elementSize(type)));
+    else
+        event->addParameters(1, uint(quintptr(indices)));
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glEnableVertexAttribArray(GLuint index)
+QWEBGL_FUNCTION(enableVertexAttribArray, void, glEnableVertexAttribArray,
+                (GLuint) index)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("enableVertexAttribArray"));
-    if (!event)
-        return;
+    postEvent<&enableVertexAttribArray>(index);
     currentContextData()->vertexAttribPointers[index].enabled = true;
-    event->addUInt(index);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glFinish()
+QWEBGL_FUNCTION_NO_PARAMS(finish, void, glFinish)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("finish"));
-    if (!event)
-        return;
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&finish>();
 }
 
-static void glFlush()
+QWEBGL_FUNCTION_NO_PARAMS(flush, void, glFlush)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("flush"));
-    if (!event)
-        return;
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&flush>();
 }
 
-static void glFramebufferRenderbuffer(GLenum target, GLenum attachment,
-                                      GLenum renderbuffertarget, GLuint renderbuffer)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("framebufferRenderbuffer"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(attachment);
-    event->addInt(renderbuffertarget);
-    event->addUInt(renderbuffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(framebufferRenderbuffer, glFramebufferRenderbuffer,
+                          (GLenum) target, (GLenum) attachment,
+                          (GLenum) renderbuffertarget, (GLuint) renderbuffer)
 
-static void glFramebufferTexture2D(GLenum target, GLenum attachment, GLenum textarget,
-                                       GLuint texture, GLint level)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("framebufferTexture2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(attachment);
-    event->addInt(textarget);
-    event->addUInt(texture);
-    event->addInt(level);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(framebufferTexture2D, glFramebufferTexture2D,
+                          (GLenum) target, (GLenum) attachment, (GLenum) textarget,
+                          (GLuint) texture, (GLint) level)
 
-static void glFrontFace(GLenum mode)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("frontFace"));
-    if (!event)
-        return;
-    event->addInt(mode);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(frontFace, glFrontFace,
+                          (GLenum) mode)
 
-static void glGenBuffers(GLsizei n, GLuint* buffers)
+QWEBGL_FUNCTION(genBuffers, void, glGenBuffers,
+                (GLsizei) n, (GLuint *) buffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("genBuffers"), true);
-    if (!event)
-        return;
-    const auto id =  event->id();
-    event->addInt(n);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toList();
-    if (values.size() != n) {
+    const auto values = postEventAndQuery<&genBuffers>(QVariantList(), n);
+    if (values.size() != n)
         qCWarning(lc, "Failed to create buffers");
-        return;
-    }
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < qMin(n, values.size()); ++i)
         buffers[i] = values.at(i).toUInt();
 }
 
-static void glGenFramebuffers(GLsizei n, GLuint* framebuffers)
+QWEBGL_FUNCTION(genFramebuffers, void, glGenFramebuffers,
+                (GLsizei) n, (GLuint *) framebuffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("genFramebuffers"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(n);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toList();
-    if (values.size() != n) {
+    const auto values = postEventAndQuery<&genFramebuffers>(QVariantList(), n);
+    if (values.size() != n)
         qCWarning(lc, "Failed to create framebuffers");
-        return;
-    }
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < qMin(n, values.size()); ++i)
         framebuffers[i] = values.at(i).toUInt();
 }
 
-static void glGenRenderbuffers(GLsizei n, GLuint* renderbuffers)
+QWEBGL_FUNCTION(genRenderbuffers, void, glGenRenderbuffers,
+                (GLsizei) n, (GLuint *) renderbuffers)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("genRenderbuffers"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(n);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toList();
-    if (values.size() != n) {
+    const auto values = postEventAndQuery<&genRenderbuffers>(QVariantList(), n);
+    if (values.size() != n)
         qCWarning(lc, "Failed to create render buffers");
-        return;
-    }
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < qMin(n, values.size()); ++i)
         renderbuffers[i] = values.at(i).toUInt();
 }
 
-static void glGenTextures(GLsizei n, GLuint* textures)
+QWEBGL_FUNCTION(genTextures, void, glGenTextures,
+                (GLsizei) n, (GLuint *) textures)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("genTextures"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(n);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto variant = queryValue(id);
-    const auto values = variant.toList();
-    if (values.size() != n) {
+    const auto values = postEventAndQuery<&genTextures>(QVariantList(), n);
+    if (values.size() != n)
         qCWarning(lc, "Failed to create textures");
-        return;
-    }
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < qMin(n, values.size()); ++i)
         textures[i] = values.at(i).toUInt();
 }
 
-static void glGenerateMipmap(GLenum target)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("generateMipmap"));
-    if (!event)
-        return;
-    event->addInt(target);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(generateMipmap, glGenerateMipmap,
+                          (GLenum) target)
 
-static void glGetActiveAttrib(GLuint program, GLuint index, GLsizei bufSize, GLsizei* length,
-                              GLint* size, GLenum* type, GLchar* name)
+QWEBGL_FUNCTION(getActiveAttrib, void, glGetActiveAttrib,
+                (GLuint) program, (GLuint) index, (GLsizei) bufSize,
+                (GLsizei *) length, (GLint *) size, (GLenum *) type, (GLchar *) name)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getActiveAttrib"), true);
-    if (!event)
+    const auto values = postEventAndQuery<&getActiveAttrib>(QVariantMap(), program, index, bufSize);
+    if (values.isEmpty())
         return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addUInt(index);
-    event->addInt(bufSize);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toMap();
-    int rtype = values["rtype"].toInt();
-    int rsize = values["rsize"].toInt();
-    QByteArray rname = values["rname"].toByteArray();
+    const int rtype = values["rtype"].toInt();
+    const int rsize = values["rsize"].toInt();
+    const QByteArray rname = values["rname"].toByteArray();
     if (type)
         *type = rtype;
     if (size)
@@ -892,21 +787,16 @@ static void glGetActiveAttrib(GLuint program, GLuint index, GLsizei bufSize, GLs
     }
 }
 
-static void glGetActiveUniform(GLuint program, GLuint index, GLsizei bufSize, GLsizei* length,
-                               GLint* size, GLenum* type, GLchar* name)
+QWEBGL_FUNCTION(getActiveUniform, void, glGetActiveUniform,
+                (GLuint) program, (GLuint) index, (GLsizei) bufSize,
+                (GLsizei *) length, (GLint *) size, (GLenum *) type, (GLchar *) name)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getActiveUniform"), true);
-    if (!event)
+    const auto values = postEventAndQuery<&getActiveUniform>(QVariantMap(), program, index, bufSize);
+    if (values.isEmpty())
         return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addUInt(index);
-    event->addInt(bufSize);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toMap();
-    int rtype = values["rtype"].toInt();
-    int rsize = values["rtype"].toInt();
-    QByteArray rname = values["rtype"].toByteArray();
+    const int rtype = values["rtype"].toInt();
+    const int rsize = values["rsize"].toInt();
+    const QByteArray rname = values["rname"].toByteArray();
     if (type)
         *type = rtype;
     if (size)
@@ -920,43 +810,29 @@ static void glGetActiveUniform(GLuint program, GLuint index, GLsizei bufSize, GL
     }
 }
 
-static void glGetAttachedShaders(GLuint program, GLsizei maxCount, GLsizei* count,
-                                 GLuint* shaders)
+QWEBGL_FUNCTION(getAttachedShaders, void, glGetAttachedShaders,
+                (GLuint) program, (GLsizei) maxCount, (GLsizei *) count, (GLuint *) shaders)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getAttachedShaders"),
-                                                       true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addInt(maxCount);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto values = queryValue(id).toList();
+    const auto values = postEventAndQuery<&getAttachedShaders>(QVariantList(), program, maxCount);
     *count = values.size();
     for (int i = 0; i < values.size(); ++i)
         shaders[i] = values.at(i).toUInt();
 }
 
-static GLint glGetAttribLocation(GLuint program, const GLchar * name)
+QWEBGL_FUNCTION(getAttribLocation, GLint, glGetAttribLocation,
+                (GLuint) program, (const GLchar *) name)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getAttribLocation"), true);
-    if (!event) return -1;
-    const auto id =  event->id();
-    event->addUInt(program);
-    event->addString(name);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&getAttribLocation>(-1, program, name);
 }
 
-static const GLubyte *glGetString(GLenum name)
+QWEBGL_FUNCTION(getString, const GLubyte *, glGetString,
+                (GLenum) name)
 {
     const auto it = currentContextData()->cachedParameters.find(name);
     if (it != currentContextData()->cachedParameters.end()) {
         auto &stringCache = currentContextData()->stringCache;
         Q_ASSERT(it->type() == QVariant::String);
         const auto string = it->toString().toLatin1();
-
         {
             auto it = stringCache.find(string), end = stringCache.end();
             if (it == end)
@@ -964,25 +840,18 @@ static const GLubyte *glGetString(GLenum name)
             return (const GLubyte *)(it->constData());
         }
     }
-
-    auto event = currentContext()->createEvent(QStringLiteral("getString"), true);
-    if (!event) return nullptr;
-    const auto id =  event->id();
-    event->addInt(name);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    auto value = queryValue(id).toByteArray();
-    qCDebug(lc, "glGetString: %x: %s", name, qPrintable(value));
+    const auto value = postEventAndQuery<&getString>(QByteArray(), name);
     strings.append(value);
     return (const GLubyte *)strings.last().constData();
 }
 
-static void glGetIntegerv(GLenum pname, GLint* data)
+QWEBGL_FUNCTION(getIntegerv, void, glGetIntegerv,
+                (GLenum) pname, (GLint *) data)
 {
     if (pname == GL_MAX_TEXTURE_SIZE) {
         *data = 512;
         return;
     }
-
     const auto it = currentContextData()->cachedParameters.find(pname);
     if (it != currentContextData()->cachedParameters.end()) {
         QList<QVariant> values;
@@ -1000,7 +869,6 @@ static void glGetIntegerv(GLenum pname, GLint* data)
         }
         return;
     }
-
     switch (pname) {
     case GL_CURRENT_PROGRAM:
         *data = currentContextData()->currentProgram;
@@ -1020,21 +888,13 @@ static void glGetIntegerv(GLenum pname, GLint* data)
     case GL_TEXTURE_BINDING_2D:
         *data = currentContextData()->boundTexture2D;
         return;
-    default:;
+    default:
+        *data = postEventAndQuery<&getIntegerv>(0, pname);
     }
-
-    auto event = currentContext()->createEvent(QStringLiteral("getIntegerv"), true);
-    if (!event)
-        return;
-    const auto id =  event->id();
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    qCDebug(lc, "glGetIntegerv: %x: %d", pname, value);
-    *data = value;
 }
 
-static void glGetBooleanv(GLenum pname, GLboolean* data)
+QWEBGL_FUNCTION(getBooleanv, void, glGetBooleanv,
+                (GLenum) pname, (GLboolean *) data)
 {
     const auto it = currentContextData()->cachedParameters.find(pname);
     if (it != currentContextData()->cachedParameters.end()) {
@@ -1042,26 +902,14 @@ static void glGetBooleanv(GLenum pname, GLboolean* data)
         *data = it->toBool();
         return;
     }
-
-    auto event = currentContext()->createEvent(QStringLiteral("getBooleanv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    qCDebug(lc, "glGetBooleanv: %x, %d", pname, value);
-    *data = value;
+    *data = postEventAndQuery<&getBooleanv>(GL_FALSE, pname);
 }
 
-static void glEnable(GLenum cap)
+QWEBGL_FUNCTION(enable, void, glEnable,
+                (GLenum) cap)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("enable"));
-    if (!event)
+    if (!postEvent<&enable>(cap))
         return;
-    event->addInt(cap);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-
     auto it = currentContextData()->cachedParameters.find(cap);
     if (it != currentContextData()->cachedParameters.end()) {
         Q_ASSERT(it->type() == QVariant::Bool);
@@ -1069,14 +917,11 @@ static void glEnable(GLenum cap)
     }
 }
 
-static void glDisable(GLenum cap)
+QWEBGL_FUNCTION(disable, void, glDisable,
+                (GLenum) cap)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("disable"));
-    if (!event)
+    if (!postEvent<&disable>(cap))
         return;
-    event->addInt(cap);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-
     auto it = currentContextData()->cachedParameters.find(cap);
     if (it != currentContextData()->cachedParameters.end()) {
         Q_ASSERT(it->type() == QVariant::Bool);
@@ -1084,161 +929,87 @@ static void glDisable(GLenum cap)
     }
 }
 
-static void glGetBufferParameteriv(GLenum target, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getBufferParameteriv, void, glGetBufferParameteriv,
+                (GLenum) target, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getBufferParameteriv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(target);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    *params = value;
+    *params = postEventAndQuery<&getBufferParameteriv>(0, target, pname);
 }
 
-static GLenum glGetError()
+QWEBGL_FUNCTION_NO_PARAMS(getError, GLenum, glGetError)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getError"), true);
-    if (!event) return GL_NO_ERROR;
-    const auto id =  event->id();
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&getError>(GL_NO_ERROR);
 }
 
-static void glGetFloatv(GLenum pname, GLfloat* data)
+QWEBGL_FUNCTION(getParameter, void, glGetFloatv,
+                (GLenum) pname, (GLfloat*) data)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getParameter"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toFloat(&ok);
-    qCDebug(lc, "glGetFloatv: %x, %f", pname, value);
-    if (!ok)
-        qCCritical(lc, "Invalid value");
-    else
-        *data = value;
+    *data = postEventAndQuery<&getParameter>(0.0, pname);
 }
 
-static void glGetFramebufferAttachmentParameteriv(GLenum target, GLenum attachment,
-                                                  GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getFramebufferAttachmentParameteriv, void, glGetFramebufferAttachmentParameteriv,
+                (GLenum) target, (GLenum) attachment, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(
-                QStringLiteral("getFramebufferAttachmentParameteriv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(target);
-    event->addInt(attachment);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toInt(&ok);
-    if (!ok)
-        qCCritical(lc, "Invalid value");
-    else
-        *params = value;
+    *params = postEventAndQuery<&getFramebufferAttachmentParameteriv>(0, target, attachment, pname);
 }
 
-static void glGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei* length,
-                                    GLchar* infoLog)
+QWEBGL_FUNCTION(getProgramInfoLog, void, glGetProgramInfoLog,
+                (GLuint) program, (GLsizei) bufSize, (GLsizei *) length, (GLchar *) infoLog)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getProgramInfoLog"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addInt(bufSize);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toString();
+    auto value = postEventAndQuery<&getProgramInfoLog>(QString(), program, bufSize);
     *length = value.length();
     if (bufSize >= value.length())
         std::memcpy(infoLog, value.constData(), value.length());
 }
 
-static void glGetProgramiv(GLuint program, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getProgramiv, void, glGetProgramiv,
+                (GLuint) program, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getProgramiv"), true);
-    if (!event)
-        return;
-    const auto id =  event->id();
-    event->addUInt(program);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    *params = queryValue(id).toInt();
+    *params = postEventAndQuery<&getProgramiv>(0, program, pname);
 }
 
-static void glGetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getRenderbufferParameteriv, void, glGetRenderbufferParameteriv,
+                (GLenum) target, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getRenderbufferParameteriv"),
-                                               true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(target);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    *params = queryValue(id).toInt();
+    *params = postEventAndQuery<&getRenderbufferParameteriv>(0, target, pname);
 }
 
-static void glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog)
+QWEBGL_FUNCTION(getShaderInfoLog, void, glGetShaderInfoLog,
+                (GLuint) shader, (GLsizei) bufSize, (GLsizei *) length, (GLchar *) infoLog)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getShaderInfoLog"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(shader);
-    event->addInt(bufSize);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toString();
+    const auto value = postEventAndQuery<&getShaderInfoLog>(QString(), shader, bufSize);
     *length = value.length();
     if (bufSize >= value.length())
         std::memcpy(infoLog, value.constData(), value.length());
 }
 
-static void glGetShaderPrecisionFormat(GLenum shadertype, GLenum precisiontype, GLint* range,
-                                       GLint* precision)
+QWEBGL_FUNCTION(getShaderPrecisionFormat, void, glGetShaderPrecisionFormat,
+                (GLenum) shadertype, (GLenum) precisiontype, (GLint *) range, (GLint *) precision)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getShaderPrecisionFormat"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(shadertype);
-    event->addInt(precisiontype);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    const auto value = postEventAndQuery<&getShaderPrecisionFormat>(QVariantMap(), shadertype,
+                                                                   precisiontype);
     bool ok;
-    const auto value = queryValue(id).toMap();
-    range[0] = value.value(QStringLiteral("rangeMin")).toInt(&ok);
+    range[0] = value[QStringLiteral("rangeMin")].toInt(&ok);
     if (!ok)
         qCCritical(lc, "Invalid rangeMin value");
-    range[1] = value.value(QStringLiteral("rangeMax")).toInt(&ok);
+    range[1] = value[QStringLiteral("rangeMax")].toInt(&ok);
     if (!ok)
         qCCritical(lc, "Invalid rangeMax value");
-    *precision = value.value(QStringLiteral("precision")).toInt(&ok);
+    *precision = value[QStringLiteral("precision")].toInt(&ok);
     if (!ok)
         qCCritical(lc, "Invalid precision value");
 }
 
-static void glGetShaderSource(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* source)
+QWEBGL_FUNCTION(getShaderSource, void, glGetShaderSource,
+                (GLuint) shader, (GLsizei) bufSize, (GLsizei *) length, (GLchar *) source)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getShaderSource"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(shader);
-    event->addInt(bufSize);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toString().toLatin1();
+    const auto value = postEventAndQuery<&getShaderSource>(QString(), shader, bufSize);
     *length = value.length();
     if (bufSize >= value.length())
         std::memcpy(source, value.constData(), value.length());
 }
 
-static void glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getShaderiv, void, glGetShaderiv,
+                (GLuint) shader, (GLenum) pname, (GLint *) params)
 {
     if (pname == GL_INFO_LOG_LENGTH) {
         GLsizei bufSize = 0;
@@ -1252,349 +1023,163 @@ static void glGetShaderiv(GLuint shader, GLenum pname, GLint* params)
         *params = bufSize;
         return;
     }
-    auto event = currentContext()->createEvent(QStringLiteral("getShaderiv"), true);
-    if (!event)
-        return;
-    const auto id =  event->id();
-    event->addUInt(shader);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    *params = queryValue(id).toInt();
+    *params = postEventAndQuery<&getShaderiv>(0, shader, pname);
 }
 
-static void glGetTexParameterfv(GLenum target, GLenum pname, GLfloat* params)
+QWEBGL_FUNCTION(getTexParameterfv, void, glGetTexParameterfv,
+                (GLenum) target, (GLenum) pname, (GLfloat *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getTexParameterfv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(target);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    *params = queryValue(id).toFloat(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
+    *params = postEventAndQuery<&getTexParameterfv>(0.f, target, pname);
 }
 
-static void glGetTexParameteriv(GLenum target, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getTexParameteriv, void, glGetTexParameteriv,
+                (GLenum) target, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getTexParameteriv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(target);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    *params = queryValue(id).toInt(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
+    *params = postEventAndQuery<&getTexParameteriv>(0, target, pname);
 }
 
-static GLint glGetUniformLocation(GLuint program, const GLchar * name)
+QWEBGL_FUNCTION(getUniformLocation, GLint, glGetUniformLocation,
+                (GLuint) program, (const GLchar *) name)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getUniformLocation"), true);
-    if (!event) return -1;
-    const auto id =  event->id();
-    event->addUInt(program);
-    event->addString(name);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toInt(&ok);
-    if (!ok) {
-        qCWarning(lc, "Failed to cast value");
-        return -1;
-    }
-    return value;
+    return postEventAndQuery<&getUniformLocation>(-1, program, name);
 }
 
-static void glGetUniformfv(GLuint program, GLint location, GLfloat* params)
+QWEBGL_FUNCTION(getUniformfv, void, glGetUniformfv,
+                (GLuint) program, (GLint) location, (GLfloat *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getUniformfv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addInt(location);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toFloat(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
-    *params = value;
+    *params = postEventAndQuery<&getUniformfv>(0.f, program, location);
 }
 
-static void glGetUniformiv(GLuint program, GLint location, GLint* params)
+QWEBGL_FUNCTION(getUniformiv, void, glGetUniformiv,
+                (GLuint) program, (GLint) location, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getUniformiv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(program);
-    event->addInt(location);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toInt(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
-    *params = value;
+    *params = postEventAndQuery<&getUniformiv>(0, program, location);
 }
 
-static void glGetVertexAttribPointerv(GLuint index, GLenum pname, void ** pointer)
+QWEBGL_FUNCTION(getVertexAttribPointerv, void, glGetVertexAttribPointerv,
+                (GLuint) index, (GLenum) pname, (void **) pointer)
 {
+    Q_UNUSED(index);
+    Q_UNUSED(pname);
     Q_UNUSED(pointer);
-    qCCritical(lc, "Not supported");
+    qFatal("glGetVertexAttribPointerv not supported");
     return;
-    auto event = currentContext()->createEvent(QStringLiteral("getVertexAttribPointerv"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glGetVertexAttribfv(GLuint index, GLenum pname, GLfloat* params)
+QWEBGL_FUNCTION(getVertexAttribfv, void, glGetVertexAttribfv,
+                (GLuint) index, (GLenum) pname, (GLfloat *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getVertexAttribfv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(index);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toFloat(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
-    *params = value;
+    *params = postEventAndQuery<&getVertexAttribfv>(0.f, index, pname);
 }
 
-static void glGetVertexAttribiv(GLuint index, GLenum pname, GLint* params)
+QWEBGL_FUNCTION(getVertexAttribiv, void, glGetVertexAttribiv,
+                (GLuint) index, (GLenum) pname, (GLint *) params)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("getVertexAttribiv"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addUInt(index);
-    event->addInt(pname);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    bool ok;
-    const auto value = queryValue(id).toInt(&ok);
-    if (!ok)
-        qCWarning(lc, "Failed to cast value");
-    *params = value;
+    *params = postEventAndQuery<&getVertexAttribiv>(0, index, pname);
 }
 
-static void glHint(GLenum target, GLenum mode)
+QWEBGL_FUNCTION_POSTEVENT(hint, glHint,
+                          (GLenum) target, (GLenum) mode)
+
+QWEBGL_FUNCTION(isBuffer, GLboolean, glIsBuffer,
+                (GLuint) buffer)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("hint"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(mode);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    return postEventAndQuery<&isBuffer>(GL_FALSE, buffer);
 }
 
-static GLboolean glIsBuffer(GLuint buffer)
+QWEBGL_FUNCTION(isEnabled, GLboolean, glIsEnabled,
+                (GLenum) cap)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isBuffer"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(buffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&isEnabled>(GL_FALSE, cap);
 }
 
-static GLboolean glIsEnabled(GLenum cap)
+QWEBGL_FUNCTION(isFramebuffer, GLboolean, glIsFramebuffer,
+                (GLuint) framebuffer)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isEnabled"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addInt(cap);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&isFramebuffer>(GL_FALSE, framebuffer);
 }
 
-static GLboolean glIsFramebuffer(GLuint framebuffer)
+QWEBGL_FUNCTION(isProgram, GLboolean, glIsProgram,
+                (GLuint) program)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isFramebuffer"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(framebuffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&isProgram>(GL_FALSE, program);
 }
 
-static GLboolean glIsProgram(GLuint program)
+QWEBGL_FUNCTION(isRenderbuffer, GLboolean, glIsRenderbuffer,
+                (GLuint) renderbuffer)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isProgram"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(program);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&isRenderbuffer>(GL_FALSE, renderbuffer);
 }
 
-static GLboolean glIsRenderbuffer(GLuint renderbuffer)
+QWEBGL_FUNCTION(isShader, GLboolean, glIsShader,
+                (GLuint) shader)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isRenderbuffer"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(renderbuffer);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
+    return postEventAndQuery<&isShader>(GL_FALSE, shader);
 }
 
-static GLboolean glIsShader(GLuint shader)
+QWEBGL_FUNCTION(isTexture, GLboolean, glIsTexture,
+                (GLuint) texture)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("isShader"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(shader);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = QWebGLIntegrationPrivate::instance()->webSocketServer->queryValue(id);
-    return value.toInt();
+    return postEventAndQuery<&isTexture>(GL_FALSE, texture);
 }
 
-static GLboolean glIsTexture(GLuint texture)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("isTexture"), true);
-    if (!event) return GL_FALSE;
-    const auto id =  event->id();
-    event->addUInt(texture);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toInt();
-    return value;
-}
+QWEBGL_FUNCTION_POSTEVENT(lineWidth, glLineWidth,
+                          (GLfloat) width)
 
-static void glLineWidth(GLfloat width)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("lineWidth"));
-    if (!event)
-        return;
-    event->addFloat(width);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(linkProgram, glLinkProgram,
+                          (GLuint) program)
 
-static void glLinkProgram(GLuint program)
+QWEBGL_FUNCTION(pixelStorei, void, glPixelStorei,
+                (GLenum) pname, (GLint) param)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("linkProgram"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glPixelStorei(GLenum pname, GLint param)
-{
+    postEvent<&pixelStorei>(pname, param);
     switch (pname) {
     case GL_UNPACK_ALIGNMENT: currentContextData()->unpackAlignment = param; break;
     }
-
-    auto event = currentContext()->createEvent(QStringLiteral("pixelStorei"));
-    if (!event)
-        return;
-    event->addInt(pname);
-    event->addInt(param);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glPolygonOffset(GLfloat factor, GLfloat units)
+QWEBGL_FUNCTION_POSTEVENT(polygonOffset, glPolygonOffset,
+                          (GLfloat) factor, (GLfloat) units)
+
+QWEBGL_FUNCTION(readPixels, void, glReadPixels,
+                (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height,
+                (GLenum) format, (GLenum) type, (void *) pixels)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("polygonOffset"));
-    if (!event)
-        return;
-    event->addFloat(factor);
-    event->addFloat(units);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    const auto value = postEventAndQuery<&readPixels>(QByteArray(), x, y, width, height, format,
+                                                     type);
+    if (!value.isEmpty())
+        std::memcpy(pixels, value.constData(), value.size());
 }
 
-static void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format,
-                         GLenum type, void * pixels)
+QWEBGL_FUNCTION_NO_PARAMS(releaseShaderCompiler, void, glReleaseShaderCompiler)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("readPixels"), true);
-    if (!event)
-        return;
-    const auto id = event->id();
-    event->addInt(x);
-    event->addInt(y);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(format);
-    event->addInt(type);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    const auto value = queryValue(id).toByteArray();
-    std::memcpy(pixels, value.constData(), value.size());
+    postEvent<&releaseShaderCompiler>();
 }
 
-static void glReleaseShaderCompiler()
-{
-    auto event = currentContext()->createEvent(QStringLiteral("releaseShaderCompiler"));
-    if (!event)
-        return;
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(renderbufferStorage, glRenderbufferStorage,
+                          (GLenum) target, (GLenum) internalformat,
+                          (GLsizei) width, (GLsizei) height)
 
-static void glRenderbufferStorage(GLenum target, GLenum internalformat, GLsizei width,
-                                  GLsizei height)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("renderbufferStorage"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(internalformat);
-    event->addInt(width);
-    event->addInt(height);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(sampleCoverage, glSampleCoverage,
+                          (GLfloat) value, (GLboolean) invert)
 
-static void glSampleCoverage(GLfloat value, GLboolean invert)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("sampleCoverage"));
-    if (!event)
-        return;
-    event->addFloat(value);
-    event->addInt(invert);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(scissor, glScissor,
+                          (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height)
 
-static void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)
+QWEBGL_FUNCTION(shaderBinary, void, glShaderBinary,
+                (GLsizei), (const GLuint *), (GLenum), (const void *), (GLsizei))
 {
-    auto event = currentContext()->createEvent(QStringLiteral("scissor"));
-    if (!event)
-        return;
-    event->addInt(x);
-    event->addInt(y);
-    event->addInt(width);
-    event->addInt(height);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glShaderBinary(GLsizei count, const GLuint * shaders, GLenum binaryformat,
-                           const void * binary, GLsizei length)
-{
-    Q_UNUSED(count);
-    Q_UNUSED(shaders);
-    Q_UNUSED(binaryformat);
-    Q_UNUSED(binary);
-    Q_UNUSED(length);
     qFatal("WebGL does not allow precompiled shaders");
 }
 
-static void glShaderSource(GLuint shader, GLsizei count, const GLchar *const* string,
-                           const GLint * length)
+QWEBGL_FUNCTION(shaderSource, void, glShaderSource,
+                (GLuint) shader, (GLsizei) count,
+                (const GLchar *const *) string, (const GLint *) length)
 {
     auto event = currentContext()->createEvent(QStringLiteral("shaderSource"));
     if (!event)
         return;
-    event->addUInt(shader);
-    event->addInt(count);
+    event->addParameters(shader, count);
     for (int i = 0; i < count; ++i) {
         if (!length)
             event->addString(QString::fromLatin1(string[i]));
@@ -1604,501 +1189,202 @@ static void glShaderSource(GLuint shader, GLsizei count, const GLchar *const* st
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
-static void glStencilFunc(GLenum func, GLint ref, GLuint mask)
+QWEBGL_FUNCTION_POSTEVENT(stencilFunc, glStencilFunc,
+                          (GLenum) func, (GLint) ref, (GLuint) mask)
+
+QWEBGL_FUNCTION_POSTEVENT(stencilFuncSeparate, glStencilFuncSeparate,
+                          (GLenum) face, (GLenum) func, (GLint) ref, (GLuint) mask)
+
+QWEBGL_FUNCTION_POSTEVENT(stencilMask, glStencilMask,
+                          (GLuint) mask)
+
+QWEBGL_FUNCTION_POSTEVENT(stencilMaskSeparate, glStencilMaskSeparate,
+                          (GLenum) face, (GLuint) mask)
+
+QWEBGL_FUNCTION_POSTEVENT(stencilOp, glStencilOp,
+                          (GLenum) fail, (GLenum) zfail, (GLenum) zpass)
+
+QWEBGL_FUNCTION_POSTEVENT(stencilOpSeparate, glStencilOpSeparate,
+                          (GLenum) face, (GLenum) sfail, (GLenum) dpfail, (GLenum) dppass)
+
+QWEBGL_FUNCTION(texImage2D, void,  glTexImage2D,
+                (GLenum) target, (GLint) level, (GLint) internalformat,
+                (GLsizei) width, (GLsizei) height, (GLint) border, (GLenum) format, (GLenum) type,
+                (const void *) pixels)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("stencilFunc"));
-    if (!event)
-        return;
-    event->addInt(func);
-    event->addInt(ref);
-    event->addUInt(mask);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&texImage2D>(target, level, internalformat, width, height, border, format, type,
+                          pixels ? QByteArray((const char*)pixels,
+                                              imageSize(width, height, format, type,
+                                                        currentContextData()->pixelStorage))
+                                 : nullptr);
 }
 
-static void glStencilFuncSeparate(GLenum face, GLenum func, GLint ref, GLuint mask)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("stencilFuncSeparate"));
-    if (!event)
-        return;
-    event->addInt(face);
-    event->addInt(func);
-    event->addInt(ref);
-    event->addUInt(mask);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(texParameterf, glTexParameterf,
+                          (GLenum) target, (GLenum) pname, (GLfloat) param)
 
-static void glStencilMask(GLuint mask)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("stencilMask"));
-    if (!event)
-        return;
-    event->addUInt(mask);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glStencilMaskSeparate(GLenum face, GLuint mask)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("stencilMaskSeparate"));
-    if (!event)
-        return;
-    event->addInt(face);
-    event->addUInt(mask);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glStencilOp(GLenum fail, GLenum zfail, GLenum zpass)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("stencilOp"));
-    if (!event)
-        return;
-    event->addInt(fail);
-    event->addInt(zfail);
-    event->addInt(zpass);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glStencilOpSeparate(GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("stencilOpSeparate"));
-    if (!event)
-        return;
-    event->addInt(face);
-    event->addInt(sfail);
-    event->addInt(dpfail);
-    event->addInt(dppass);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width,
-                         GLsizei height, GLint border, GLenum format, GLenum type,
-                         const void * pixels)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("texImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(internalformat);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(border);
-    event->addInt(format);
-    event->addInt(type);
-
-    if (pixels) {
-        const int len = imageSize(width, height, format, type, currentContextData()->pixelStorage);
-        event->addData(QByteArray((const char *)pixels, len));
-    } else {
-        event->addNull();
-    }
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("texParameterf"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(pname);
-    event->addFloat(param);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glTexParameterfv(GLenum target, GLenum pname, const GLfloat * params)
+QWEBGL_FUNCTION(texParameterfv, void, glTexParameterfv,
+                (GLenum), (GLenum), (const GLfloat *))
 {
     qFatal("glTexParameterfv not implemented");
-    Q_UNUSED(target);
-    Q_UNUSED(pname);
-    Q_UNUSED(params);
 }
 
-static void glTexParameteri(GLenum target, GLenum pname, GLint param)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("texParameteri"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(pname);
-    event->addInt(param);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(texParameteri, glTexParameteri,
+                          (GLenum) target, (GLenum) pname, (GLint) param)
 
-static void glTexParameteriv(GLenum target, GLenum pname, const GLint * params)
+QWEBGL_FUNCTION(texParameteriv, void, glTexParameteriv,
+                (GLenum), (GLenum), (const GLint *))
 {
     qFatal("glTexParameteriv not implemented");
-    Q_UNUSED(target);
-    Q_UNUSED(pname);
-    Q_UNUSED(params);
 }
 
-static void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
-                            GLsizei width, GLsizei height, GLenum format, GLenum type,
-                            const void * pixels)
+QWEBGL_FUNCTION(texSubImage2D, void, glTexSubImage2D,
+                (GLenum) target, (GLint) level, (GLint) xoffset, (GLint) yoffset,
+                (GLsizei) width, (GLsizei) height, (GLenum) format, (GLenum) type,
+                (const void *) pixels)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("texSubImage2D"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(level);
-    event->addInt(xoffset);
-    event->addInt(yoffset);
-    event->addInt(width);
-    event->addInt(height);
-    event->addInt(format);
-    event->addInt(type);
-    if (pixels) {
-        const int len = imageSize(width, height, format, type, currentContextData()->pixelStorage);
-        event->addData(QByteArray((const char *)pixels, len));
-    } else {
-        event->addNull();
-    }
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&texSubImage2D>(target, level, xoffset, yoffset, width, height, format, type,
+                             pixels ? QByteArray((const char *)pixels,
+                                                 imageSize(width, height, format, type,
+                                                           currentContextData()->pixelStorage))
+                                    : nullptr);
 }
 
-static void glUniform1f(GLint location, GLfloat v0)
+QWEBGL_FUNCTION_POSTEVENT(uniform1f, glUniform1f, (GLint) location, (GLfloat) v0)
+
+QWEBGL_FUNCTION(uniform1fv, void, glUniform1fv,
+                (GLint) location, (GLsizei) count, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform1f"), false);
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addFloat(v0);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform1fv>(location, count, qMakePair(value, count));
 }
 
-static void glUniform1fv(GLint location, GLsizei count, const GLfloat * value)
+QWEBGL_FUNCTION_POSTEVENT(uniform1i, glUniform1i,
+                          (GLint) location, (GLint) v0)
+
+QWEBGL_FUNCTION(uniform1iv, void, glUniform1iv,
+                (GLint) location, (GLsizei) count, (const GLint *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform1fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform1iv>(location, count, qMakePair(value, count));
 }
 
-static void glUniform1i(GLint location, GLint v0)
+QWEBGL_FUNCTION_POSTEVENT(uniform2f, glUniform2f,
+                          (GLint) location, (GLfloat) v0, (GLfloat) v1)
+
+QWEBGL_FUNCTION(uniform2fv, void, glUniform2fv,
+                (GLint) location, (GLsizei) count, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform1i"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(v0);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform2fv>(location, count, qMakePair(value, count * 2));
 }
 
-static void glUniform1iv(GLint location, GLsizei count, const GLint * value)
+QWEBGL_FUNCTION_POSTEVENT(uniform2i, glUniform2i,
+                          (GLint) location, (GLint) v0, (GLint) v1)
+
+QWEBGL_FUNCTION(uniform2iv, void, glUniform2iv,
+                (GLint) location, (GLsizei) count, (const GLint *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform1iv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < count; ++i)
-        event->addInt(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform2iv>(location, count, qMakePair(value, count * 2));
 }
 
-static void glUniform2f(GLint location, GLfloat v0, GLfloat v1)
+QWEBGL_FUNCTION_POSTEVENT(uniform3f, glUniform3f,
+                          (GLint) location, (GLfloat) v0, (GLfloat) v1, (GLfloat) v2)
+
+
+QWEBGL_FUNCTION(uniform3fv, void, glUniform3fv,
+                (GLint) location, (GLsizei) count, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform2f"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addFloat(v0);
-    event->addFloat(v1);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform3fv>(location, count, qMakePair(value, count * 3));
 }
 
-static void glUniform2fv(GLint location, GLsizei count, const GLfloat * value)
+QWEBGL_FUNCTION_POSTEVENT(uniform3i, glUniform3i,
+                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2)
+
+QWEBGL_FUNCTION(uniform3iv, void, glUniform3iv,
+                (GLint) location, (GLsizei) count, (const GLint *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform2fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 2 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform3iv>(location, count, qMakePair(value, count * 3));
 }
 
-static void glUniform2i(GLint location, GLint v0, GLint v1)
+QWEBGL_FUNCTION_POSTEVENT(uniform4f, glUniform4f,
+                          (GLint) location, (GLfloat) v0, (GLfloat) v1,
+                          (GLfloat) v2, (GLfloat) v3)
+
+QWEBGL_FUNCTION(uniform4fv, void, glUniform4fv,
+                (GLint) location, (GLsizei) count, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform2i"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(v0);
-    event->addInt(v1);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform4fv>(location, count, qMakePair(value, count * 4));
 }
 
-static void glUniform2iv(GLint location, GLsizei count, const GLint * value)
+QWEBGL_FUNCTION_POSTEVENT(uniform4i, glUniform4i,
+                          (GLint) location, (GLint) v0, (GLint) v1, (GLint) v2, (GLint) v3)
+
+QWEBGL_FUNCTION(uniform4iv, void, glUniform4iv,
+                (GLint) location, (GLsizei) count, (const GLint *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform2iv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 2 * count; ++i)
-        event->addInt(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniform4iv>(location, count, qMakePair(value, count * 4));
 }
 
-static void glUniform3f(GLint location, GLfloat v0, GLfloat v1, GLfloat v2)
+QWEBGL_FUNCTION(uniformMatrix2fv, void, glUniformMatrix2fv,
+                (GLint) location, (GLsizei) count, (GLboolean) transpose, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform3f"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addFloat(v0);
-    event->addFloat(v1);
-    event->addFloat(v2);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniformMatrix2fv>(location, count, transpose, qMakePair(value, count * 4));
 }
 
-static void glUniform3fv(GLint location, GLsizei count, const GLfloat * value)
+QWEBGL_FUNCTION(uniformMatrix3fv, void, glUniformMatrix3fv,
+                (GLint) location, (GLsizei) count, (GLboolean) transpose, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform3fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 3 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniformMatrix3fv>(location, count, transpose, qMakePair(value, count * 9));
 }
 
-static void glUniform3i(GLint location, GLint v0, GLint v1, GLint v2)
+QWEBGL_FUNCTION(uniformMatrix4fv, void, glUniformMatrix4fv,
+                (GLint) location, (GLsizei) count, (GLboolean) transpose, (const GLfloat *) value)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform3i"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(v0);
-    event->addInt(v1);
-    event->addInt(v2);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&uniformMatrix4fv>(location, count, transpose, qMakePair(value, count * 16));
 }
 
-static void glUniform3iv(GLint location, GLsizei count, const GLint * value)
+QWEBGL_FUNCTION_POSTEVENT(useProgram, glUseProgram,
+                          (GLuint) program)
+
+QWEBGL_FUNCTION_POSTEVENT(validateProgram, glValidateProgram,
+                          (GLuint) program)
+
+QWEBGL_FUNCTION_POSTEVENT(vertexAttrib1f, glVertexAttrib1f,
+                          (GLuint) index, (GLfloat) x)
+
+QWEBGL_FUNCTION(vertexAttrib1fv, void, glVertexAttrib1fv,
+                (GLuint) index, (const GLfloat *) v)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform3iv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 3 * count; ++i)
-        event->addInt(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&vertexAttrib1fv>(index, v[0]);
 }
 
-static void glUniform4f(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
+QWEBGL_FUNCTION_POSTEVENT(vertexAttrib2f, glVertexAttrib2f,
+                          (GLuint) index, (GLfloat) x, (GLfloat) y)
+
+QWEBGL_FUNCTION(vertexAttrib2fv, void, glVertexAttrib2fv,
+                (GLuint) index, (const GLfloat *) v)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform4f"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addFloat(v0);
-    event->addFloat(v1);
-    event->addFloat(v2);
-    event->addFloat(v3);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&vertexAttrib2fv>(index, v[0], v[1]);
 }
 
-static void glUniform4fv(GLint location, GLsizei count, const GLfloat * value)
+QWEBGL_FUNCTION_POSTEVENT(vertexAttrib3f, glVertexAttrib3f,
+                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z)
+
+QWEBGL_FUNCTION(vertexAttrib3fv, void, glVertexAttrib3fv,
+                (GLuint) index, (const GLfloat *) v)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform4fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 4 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&vertexAttrib3fv>(index, v[0], v[1], v[2]);
 }
 
-static void glUniform4i(GLint location, GLint v0, GLint v1, GLint v2, GLint v3)
+QWEBGL_FUNCTION_POSTEVENT(vertexAttrib4f, glVertexAttrib4f,
+                          (GLuint) index, (GLfloat) x, (GLfloat) y, (GLfloat) z, (GLfloat) w)
+
+QWEBGL_FUNCTION(vertexAttrib4fv, void, glVertexAttrib4fv,
+                (GLuint) index, (const GLfloat *) v)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("uniform4i"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(v0);
-    event->addInt(v1);
-    event->addInt(v2);
-    event->addInt(v3);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&vertexAttrib4fv>(index, v[0], v[1], v[2], v[3]);
 }
 
-static void glUniform4iv(GLint location, GLsizei count, const GLint * value)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("uniform4iv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    for (int i = 0; i < 4 * count; ++i)
-        event->addInt(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glUniformMatrix2fv(GLint location, GLsizei count, GLboolean transpose,
-                               const GLfloat * value)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("uniformMatrix2fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    event->addInt(transpose);
-    for (int i = 0; i < 4 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose,
-                               const GLfloat * value)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("uniformMatrix3fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    event->addInt(transpose);
-    for (int i = 0; i < 9 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose,
-                               const GLfloat * value)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("uniformMatrix4fv"));
-    if (!event)
-        return;
-    event->addInt(location);
-    event->addInt(count);
-    event->addInt(transpose);
-    for (int i = 0; i < 16 * count; ++i)
-        event->addFloat(value[i]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glUseProgram(GLuint program)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("useProgram"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    currentContextData()->currentProgram = program;
-}
-
-static void glValidateProgram(GLuint program)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("validateProgram"));
-    if (!event)
-        return;
-    event->addUInt(program);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib1f(GLuint index, GLfloat x)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib1f"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(x);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib1fv(GLuint index, const GLfloat * v)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib1fv"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(v[0]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib2f(GLuint index, GLfloat x, GLfloat y)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib2f"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(x);
-    event->addFloat(y);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib2fv(GLuint index, const GLfloat * v)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib2fv"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(v[0]);
-    event->addFloat(v[1]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib3f(GLuint index, GLfloat x, GLfloat y, GLfloat z)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib3f"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(x);
-    event->addFloat(y);
-    event->addFloat(z);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib3fv(GLuint index, const GLfloat * v)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib3fv"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(v[0]);
-    event->addFloat(v[1]);
-    event->addFloat(v[2]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib4f(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib4f"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(x);
-    event->addFloat(y);
-    event->addFloat(z);
-    event->addFloat(w);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttrib4fv(GLuint index, const GLfloat * v)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("vertexAttrib4fv"));
-    if (!event)
-        return;
-    event->addUInt(index);
-    event->addFloat(v[0]);
-    event->addFloat(v[1]);
-    event->addFloat(v[2]);
-    event->addFloat(v[3]);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
-
-static void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized,
-                                  GLsizei stride, const void * pointer)
+QWEBGL_FUNCTION(vertexAttribPointer, void, glVertexAttribPointer,
+                (GLuint) index, (GLint) size, (GLenum) type,
+                (GLboolean) normalized, (GLsizei) stride, (const void *) pointer)
 {
     ContextData *d = currentContextData();
     ContextData::VertexAttrib &va(d->vertexAttribPointers[index]);
@@ -2108,103 +1394,47 @@ static void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboole
     va.normalized = normalized;
     va.stride = stride;
     va.pointer = (void *) pointer;
-
-    if (d->boundArrayBuffer) {
-        auto event = currentContext()->createEvent(QStringLiteral("vertexAttribPointer"), false);
-        if (!event)
-            return;
-        event->addUInt(index);
-        event->addInt(size);
-        event->addInt(type);
-        event->addInt(normalized);
-        event->addInt(stride);
-        event->addUInt((quintptr) pointer);
-        QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-    }
+    if (d->boundArrayBuffer)
+        postEvent<&vertexAttribPointer>(index, size, type, normalized, stride,
+                                       uint(quintptr(pointer)));
 }
 
-static void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+QWEBGL_FUNCTION(viewport, void, glViewport,
+                (GLint) x, (GLint) y, (GLsizei) width, (GLsizei) height)
 {
-    auto event = currentContext()->createEvent(QStringLiteral("viewport"));
-    if (!event)
-        return;
-    event->addInt(x);
-    event->addInt(y);
-    event->addInt(width);
-    event->addInt(height);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-
+    postEvent<&viewport>(x, y, width, height);
     auto it = currentContextData()->cachedParameters.find(GL_VIEWPORT);
     if (it != currentContextData()->cachedParameters.end())
         it->setValue(QVariantList{ x, y, width, height });
 }
 
-static void glBlitFramebufferEXT(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1,
-                                 GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,
-                                 GLbitfield mask, GLenum filter)
-{
-    auto event = currentContext()->createEvent(QStringLiteral("blitFramebufferEXT"));
-    if (!event)
-        return;
-    event->addInt(srcX0);
-    event->addInt(srcY0);
-    event->addInt(srcX1);
-    event->addInt(srcY1);
-    event->addInt(dstX0);
-    event->addInt(dstY0);
-    event->addInt(dstX1);
-    event->addInt(dstY1);
-    event->addUInt(mask);
-    event->addInt(filter);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(blitFramebufferEXT, glBlitFramebufferEXT,
+                          (GLint) srcX0, (GLint) srcY0, (GLint) srcX1, (GLint) srcY1,
+                          (GLint) dstX0, (GLint) dstY0, (GLint) dstX1, (GLint) dstY1,
+                          (GLbitfield) mask, (GLenum) filter)
 
-static void glRenderbufferStorageMultisampleEXT(GLenum target, GLsizei samples,
-                                                GLenum internalformat, GLsizei width,
-                                                GLsizei height)
-{
-    auto event = currentContext()->createEvent(
-                QStringLiteral("renderbufferStorageMultisampleEXT"));
-    if (!event)
-        return;
-    event->addInt(target);
-    event->addInt(samples);
-    event->addInt(internalformat);
-    event->addInt(width);
-    event->addInt(height);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
-}
+QWEBGL_FUNCTION_POSTEVENT(renderbufferStorageMultisampleEXT, glRenderbufferStorageMultisampleEXT,
+                (GLenum) target, (GLsizei) samples, (GLenum) internalformat, (GLsizei) width,
+                (GLsizei) height)
 
-static void glGetTexLevelParameteriv(GLenum target, GLint level, GLenum pname, GLint *params)
+QWEBGL_FUNCTION(getTexLevelParameteriv, void, glGetTexLevelParameteriv,
+                (GLenum), (GLint), (GLenum), (GLint *))
 {
     qFatal("glGetTexLevelParameteriv not supported");
-    Q_UNUSED(target);
-    Q_UNUSED(level);
-    Q_UNUSED(pname);
-    Q_UNUSED(params);
 }
 
+#undef QWEBGL_FUNCTION
+
+extern const GLFunction makeCurrent("makeCurrent");
+extern const GLFunction swapBuffers("swapBuffers");
+
 }
-
-class QWebGLContextPrivate
-{
-public:
-    int id = -1;
-    static QAtomicInt nextId;
-    static QSet<int> waitingIds;
-    QPlatformSurface *currentSurface = nullptr;
-    QSurfaceFormat surfaceFormat;
-};
-
-QAtomicInt QWebGLContextPrivate::nextId(1);
-QSet<int> QWebGLContextPrivate::waitingIds;
 
 QWebGLContext::QWebGLContext(const QSurfaceFormat &format) :
     d_ptr(new QWebGLContextPrivate)
 {
     Q_D(QWebGLContext);
     d->id = d->nextId.fetchAndAddOrdered(1);
-
     qCDebug(lc, "Creating context %d", d->id);
     d->surfaceFormat = format;
     d->surfaceFormat.setRenderableType(QSurfaceFormat::OpenGLES);
@@ -2222,7 +1452,7 @@ QSurfaceFormat QWebGLContext::format() const
 void QWebGLContext::swapBuffers(QPlatformSurface *surface)
 {
     Q_UNUSED(surface);
-    auto event = currentContext()->createEvent(QStringLiteral("swapBuffers"), true);
+    auto event = createEvent(QStringLiteral("swapBuffers"), true);
     if (!event)
         return;
     lockMutex();
@@ -2246,7 +1476,7 @@ bool QWebGLContext::makeCurrent(QPlatformSurface *surface)
     Q_ASSERT(context);
     auto handle = static_cast<QWebGLContext *>(context->handle());
     handle->d_func()->currentSurface = surface;
-    auto event = currentContext()->createEvent(QStringLiteral("makeCurrent"));
+    auto event = createEvent(QStringLiteral("makeCurrent"));
     if (!event)
         return false;
     event->addInt(d->id);
@@ -2274,14 +1504,7 @@ bool QWebGLContext::makeCurrent(QPlatformSurface *surface)
 
 void QWebGLContext::doneCurrent()
 {
-    auto event = currentContext()->createEvent(QStringLiteral("makeCurrent"));
-    if (!event)
-        return;
-    event->addInt(0);
-    event->addInt(0);
-    event->addInt(0);
-    event->addInt(0);
-    QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
+    postEvent<&QWebGL::makeCurrent>(0, 0, 0, 0);
 }
 
 bool QWebGLContext::isValid() const
@@ -2292,168 +1515,8 @@ bool QWebGLContext::isValid() const
 
 QFunctionPointer QWebGLContext::getProcAddress(const char *procName)
 {
-    using namespace QWebGL;
-
-    struct FuncTab {
-        const char *name;
-        QFunctionPointer func;
-    } funcTab[] = {
-#define QWEBGLCONTEXT_ADD_FUNCTION(NAME) { #NAME, (QFunctionPointer) QWebGL::NAME }
-        QWEBGLCONTEXT_ADD_FUNCTION(glActiveTexture),
-        QWEBGLCONTEXT_ADD_FUNCTION(glAttachShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBindAttribLocation),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBindBuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBindFramebuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBindRenderbuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBindTexture),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlendColor),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlendEquation),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlendEquationSeparate),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlendFunc),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlendFuncSeparate),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBufferData),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBufferSubData),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCheckFramebufferStatus),
-        QWEBGLCONTEXT_ADD_FUNCTION(glClear),
-        QWEBGLCONTEXT_ADD_FUNCTION(glClearColor),
-        QWEBGLCONTEXT_ADD_FUNCTION(glClearDepthf),
-        QWEBGLCONTEXT_ADD_FUNCTION(glClearStencil),
-        QWEBGLCONTEXT_ADD_FUNCTION(glColorMask),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCompileShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCompressedTexImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCompressedTexSubImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCopyTexImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCopyTexSubImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCreateProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCreateShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glCullFace),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteBuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteFramebuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteRenderbuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDeleteTextures),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDepthFunc),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDepthMask),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDepthRangef),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDetachShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDisable),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDisableVertexAttribArray),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDrawArrays),
-        QWEBGLCONTEXT_ADD_FUNCTION(glDrawElements),
-        QWEBGLCONTEXT_ADD_FUNCTION(glEnable),
-        QWEBGLCONTEXT_ADD_FUNCTION(glEnableVertexAttribArray),
-        QWEBGLCONTEXT_ADD_FUNCTION(glFinish),
-        QWEBGLCONTEXT_ADD_FUNCTION(glFlush),
-        QWEBGLCONTEXT_ADD_FUNCTION(glFramebufferRenderbuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glFramebufferTexture2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glFrontFace),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGenBuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGenFramebuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGenRenderbuffers),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGenTextures),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGenerateMipmap),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetActiveAttrib),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetActiveUniform),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetAttachedShaders),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetAttribLocation),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetBooleanv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetBufferParameteriv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetError),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetFloatv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetFramebufferAttachmentParameteriv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetIntegerv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetProgramInfoLog),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetProgramiv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetRenderbufferParameteriv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetShaderInfoLog),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetShaderPrecisionFormat),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetShaderSource),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetShaderiv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetString),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetTexParameterfv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetTexParameteriv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetUniformLocation),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetUniformfv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetUniformiv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetVertexAttribPointerv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetVertexAttribfv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetVertexAttribiv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glHint),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsBuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsEnabled),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsFramebuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsRenderbuffer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsShader),
-        QWEBGLCONTEXT_ADD_FUNCTION(glIsTexture),
-        QWEBGLCONTEXT_ADD_FUNCTION(glLineWidth),
-        QWEBGLCONTEXT_ADD_FUNCTION(glLinkProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glPixelStorei),
-        QWEBGLCONTEXT_ADD_FUNCTION(glPolygonOffset),
-        QWEBGLCONTEXT_ADD_FUNCTION(glReadPixels),
-        QWEBGLCONTEXT_ADD_FUNCTION(glReleaseShaderCompiler),
-        QWEBGLCONTEXT_ADD_FUNCTION(glRenderbufferStorage),
-        QWEBGLCONTEXT_ADD_FUNCTION(glSampleCoverage),
-        QWEBGLCONTEXT_ADD_FUNCTION(glScissor),
-        QWEBGLCONTEXT_ADD_FUNCTION(glShaderBinary),
-        QWEBGLCONTEXT_ADD_FUNCTION(glShaderSource),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilFunc),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilFuncSeparate),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilMask),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilMaskSeparate),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilOp),
-        QWEBGLCONTEXT_ADD_FUNCTION(glStencilOpSeparate),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexParameterf),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexParameterfv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexParameteri),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexParameteriv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glTexSubImage2D),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform1f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform1fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform1i),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform1iv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform2f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform2fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform2i),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform2iv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform3f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform3fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform3i),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform3iv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform4f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform4fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform4i),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniform4iv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniformMatrix2fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniformMatrix3fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUniformMatrix4fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glUseProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glValidateProgram),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib1f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib1fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib2f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib2fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib3f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib3fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib4f),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttrib4fv),
-        QWEBGLCONTEXT_ADD_FUNCTION(glVertexAttribPointer),
-        QWEBGLCONTEXT_ADD_FUNCTION(glViewport),
-        QWEBGLCONTEXT_ADD_FUNCTION(glBlitFramebufferEXT),
-        QWEBGLCONTEXT_ADD_FUNCTION(glRenderbufferStorageMultisampleEXT),
-        QWEBGLCONTEXT_ADD_FUNCTION(glGetTexLevelParameteriv)
-#undef QWEBGLCONTEXT_ADD_FUNCTION
-    };
-
-
-    auto size = sizeof(funcTab) / sizeof(FuncTab);
-    for (auto i = 0u; i < size; ++i)
-        if (strcmp(procName, funcTab[i].name) == 0)
-            return funcTab[i].func;
-    qCCritical(lc, "%s function not available", procName);
-    return nullptr;
+    const auto it = glFunctions.find(procName);
+    return it != glFunctions.end() ? (*it)->functionPointer : nullptr;
 }
 
 int QWebGLContext::id() const
@@ -2479,12 +1542,8 @@ QWebGLFunctionCall *QWebGLContext::createEvent(const QString &functionName, bool
             || clientData->socket->state() != QAbstractSocket::ConnectedState)
         return nullptr;
     const auto pointer = new QWebGLFunctionCall(functionName, handle->currentSurface(), wait);
-    if (pointer) {
-        if (wait)
-            QWebGLContextPrivate::waitingIds.insert(pointer->id());
-    } else {
-        qCWarning(lc, "Cannot create the event, the client is disconnected");
-    }
+    if (wait)
+        QWebGLContextPrivate::waitingIds.insert(pointer->id());
 
     return pointer;
 }

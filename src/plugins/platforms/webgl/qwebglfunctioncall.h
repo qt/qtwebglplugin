@@ -34,6 +34,8 @@
 #include <QtCore/qscopedpointer.h>
 #include <QtCore/qvariant.h>
 
+#include <tuple>
+
 QT_BEGIN_NAMESPACE
 
 class QByteArray;
@@ -64,7 +66,35 @@ public:
     void addData(const QByteArray &data);
     void addNull();
 
+    void add(const QString &value) { addString(value); }
+    void add(const char *value) { addString(QString::fromLatin1(value)); }
+    void add(int value) { addInt(value); }
+    void add(uint value) { addUInt(value); }
+    void add(float value) { addFloat(value); }
+    void add(const QByteArray &data) { addData(data); }
+    void add(std::nullptr_t) { addNull(); }
+
+    template<class...Ts>
+    void addParameters(Ts&&... arguments)
+    {
+        addImpl(arguments...);
+    }
+
     QVariantList parameters() const;
+
+protected:
+    template<typename T>
+    void addImpl(T first)
+    {
+        add(first);
+    }
+
+    template<typename T, typename... Ts>
+    void addImpl(T first, Ts... rest)
+    {
+        add(first);
+        addImpl(rest...);
+    }
 
 private:
     Q_DISABLE_COPY(QWebGLFunctionCall)

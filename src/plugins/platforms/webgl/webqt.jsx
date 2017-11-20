@@ -34,6 +34,7 @@ function physicalSizeRatio() {
 
 window.onload = function () {
     var DEBUG = 0;
+    var LOADINGSCREEN = 1;
     var canvas;
     var socket = new WebSocket("ws://" + host + ":" + port);
     socket.binaryType = "arraybuffer";
@@ -113,6 +114,8 @@ window.onload = function () {
         var body = document.getElementsByTagName("body")[0];
         body.appendChild(canvas);
 
+        if (!LOADINGSCREEN)
+            return canvas;
         var gl = canvas.getContext("webgl");
 
         var loadingVertexShaderSource =
@@ -286,8 +289,9 @@ window.onload = function () {
             object["time"] = new Date().getTime();
             object["event"] = event.type;
             object["changedTouches"] = [];
-            for (var i = 0; i < event.targetTouches.length; ++i) {
-                var changedTouch = event.targetTouches[i];
+            object["stationaryTouches"] = [];
+
+            var addTouch = function(changedTouch, isChanged) {
                 var touch = {};
                 touch["clientX"] = changedTouch.clientX;
                 touch["clientY"] = changedTouch.clientY;
@@ -302,8 +306,26 @@ window.onload = function () {
                 touch["screenY"] = changedTouch.screenY;
                 touch["normalPositionX"] = changedTouch.screenX / screen.width;
                 touch["normalPositionY"] = changedTouch.screenY / screen.height;
-                object.changedTouches.push(touch);
+                if (isChanged)
+                    object.changedTouches.push(touch);
+                else
+                    object.stationaryTouches.push(touch);
+            };
+
+            for (var i = 0; i < event.changedTouches.length; ++i) {
+                var changedTouch = event.changedTouches[i];
+                addTouch(changedTouch, true);
             }
+
+            for (var i = 0; i < event.targetTouches.length; ++i) {
+                var targetTouch = event.targetTouches[i];
+                if (object.changedTouches.findIndex(function(touch){
+                    return touch.identifier === targetTouch.identifier;
+                }) === -1) {
+                    addTouch(targetTouch, false);
+                }
+            }
+
             sendObject(object);
 
             if (event.preventDefault && event.cancelable)
@@ -333,84 +355,14 @@ window.onload = function () {
             '7939' : "GL_OES_element_index_uint GL_OES_standard_derivatives " + // GL_EXTENSIONS
                      "GL_OES_depth_texture GL_OES_packed_depth_stencil" };
         [
-//            gl.ACTIVE_TEXTURE,
-//            gl.ALIASED_LINE_WIDTH_RANGE,
-//            gl.ALIASED_POINT_SIZE_RANGE,
-//            gl.ALPHA_BITS,
             gl.BLEND,
-//            gl.BLEND_COLOR,
-//            gl.BLEND_DST_ALPHA,
-//            gl.BLEND_DST_RGB,
-//            gl.BLEND_EQUATION,
-//            gl.BLEND_EQUATION_ALPHA,
-//            gl.BLEND_EQUATION_RGB,
-//            gl.BLEND_SRC_ALPHA,
-//            gl.BLEND_SRC_RGB,
-//            gl.BLUE_BITS,
-//            gl.COLOR_CLEAR_VALUE,
-//            gl.COLOR_WRITEMASK,
-//            gl.COMPRESSED_TEXTURE_FORMATS,
-//            gl.CULL_FACE,
-//            gl.CULL_FACE_MODE,
-//            gl.DEPTH_BITS,
-//            gl.DEPTH_CLEAR_VALUE,
-//            gl.DEPTH_FUNC,
-//            gl.DEPTH_RANGE,
             gl.DEPTH_TEST,
-//            gl.DEPTH_WRITEMASK,
-//            gl.DITHER,
-//            gl.FRONT_FACE,
-//            gl.GENERATE_MIPMAP_HINT,
-//            gl.GREEN_BITS,
-//            gl.IMPLEMENTATION_COLOR_READ_FORMAT,
-//            gl.IMPLEMENTATION_COLOR_READ_TYPE,
-//            gl.LINE_WIDTH,
-//            gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS,
-//            gl.MAX_CUBE_MAP_TEXTURE_SIZE,
-//            gl.MAX_FRAGMENT_UNIFORM_VECTORS,
-//            gl.MAX_RENDERBUFFER_SIZE,
-//            gl.MAX_TEXTURE_IMAGE_UNITS,
             gl.MAX_TEXTURE_SIZE,
-//            gl.MAX_VARYING_VECTORS,
             gl.MAX_VERTEX_ATTRIBS,
-//            gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS,
-//            gl.MAX_VERTEX_UNIFORM_VECTORS,
-//            gl.MAX_VIEWPORT_DIMS,
-//            gl.PACK_ALIGNMENT,
-//            gl.POLYGON_OFFSET_FACTOR,
-//            gl.POLYGON_OFFSET_FILL,
-//            gl.POLYGON_OFFSET_UNITS,
-//            gl.RED_BITS,
             gl.RENDERER,
-//            gl.SAMPLE_BUFFERS,
-//            gl.SAMPLE_COVERAGE_INVERT,
-//            gl.SAMPLE_COVERAGE_VALUE,
-//            gl.SAMPLES,
-//            gl.SCISSOR_BOX,
             gl.SCISSOR_TEST,
-//            gl.SHADING_LANGUAGE_VERSION,
-//            gl.STENCIL_BACK_FAIL,
-//            gl.STENCIL_BACK_FUNC,
-//            gl.STENCIL_BACK_PASS_DEPTH_FAIL,
-//            gl.STENCIL_BACK_PASS_DEPTH_PASS,
-//            gl.STENCIL_BACK_REF,
-//            gl.STENCIL_BACK_VALUE_MASK,
-//            gl.STENCIL_BACK_WRITEMASK,
-//            gl.STENCIL_BITS,
-//            gl.STENCIL_CLEAR_VALUE,
-//            gl.STENCIL_FAIL,
-//            gl.STENCIL_FUNC,
-//            gl.STENCIL_PASS_DEPTH_FAIL,
-//            gl.STENCIL_PASS_DEPTH_PASS,
-//            gl.STENCIL_REF,
             gl.STENCIL_TEST,
-//            gl.STENCIL_VALUE_MASK,
-//            gl.STENCIL_WRITEMASK,
-//            gl.SUBPIXEL_BITS,
             gl.UNPACK_ALIGNMENT,
-//            gl.UNPACK_COLORSPACE_CONVERSION_WEBGL,
-//            gl.UNPACK_FLIP_Y_WEBGL,
-//            gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,
             gl.VENDOR,
             gl.VERSION,
             gl.VIEWPORT
@@ -457,7 +409,7 @@ window.onload = function () {
 
         gl._bufferData = gl.bufferData;
         gl.bufferData = function(target, usage, size, data) {
-            gl._bufferData(target, data.length === 0 ? size : data, usage);
+            gl._bufferData(target, data === null || data.length === 0 ? size : data, usage);
         };
 
         gl._clearColor = gl.clearColor;
@@ -501,7 +453,6 @@ window.onload = function () {
                 gl.deleteBuffer(d.bufferMap[arguments[1 +i]]);
         };
 
-        gl._deleteFramebuffers = gl.deleteFramebuffers;
         gl.deleteFramebuffers = function(n) {
             var d = contextData[currentContext];
             for (var i = 0; i < n; ++i)
@@ -514,7 +465,6 @@ window.onload = function () {
             gl._deleteProgram(d.programMap[program]);
         };
 
-        gl._deleteRenderbuffers = gl.deleteRenderbuffers;
         gl.deleteRenderbuffers = function() {
             var d = contextData[currentContext];
             for (var i in arguments)
@@ -548,8 +498,14 @@ window.onload = function () {
             // the depth and stencil attachment points. WebGL does not allow this. Instead,
             // we need to attach to the DEPTH_STENCIL attachment point.
             if (d.renderbufferFormat[d.boundRenderbuffer] === gl.DEPTH_STENCIL) {
-                if (attachment === gl.STENCIL_ATTACHMENT)
+                if (attachment === gl.STENCIL_ATTACHMENT) {
                     attachment = gl.DEPTH_STENCIL_ATTACHMENT;
+                } else {
+                    // Ignore this call. Qt Quick will send a new call with STENCIL_ATTACHMENT
+                    // parameter, it will be replaced by DEPTH_STENCIL_ATTACHMENT to work-around the
+                    // browser limitation.
+                    return;
+                }
             }
             gl._framebufferRenderbuffer(target, attachment, renderbuffertarget,
                                         d.renderbufferMap[renderbuffer]);
@@ -579,7 +535,6 @@ window.onload = function () {
             return data;
         };
 
-        gl._genRenderbuffers = gl.genRenderbuffers;
         gl.genRenderbuffers = function(n) {
             var d = contextData[currentContext];
             var data = [];
@@ -711,7 +666,7 @@ window.onload = function () {
         gl.renderbufferStorage = function(target, internalFormat, width, height) {
             var d = contextData[currentContext];
             if (internalFormat === 0x88F0) // GL_DEPTH24_STENCIL8_OES
-                internalformat = 0x84F9; // GL_DEPTH_STENCIL_OES
+                internalFormat = 0x84F9; // GL_DEPTH_STENCIL_OES
             d.renderbufferFormat[d.boundRenderbuffer] = internalFormat;
             gl._renderbufferStorage(target, internalFormat, width, height);
         };
@@ -895,6 +850,7 @@ window.onload = function () {
     }
 
     var commandsNeedingResponse = [
+        "swapBuffers",
         "checkFramebufferStatus",
         "createProgram",
         "createShader",
@@ -970,8 +926,19 @@ window.onload = function () {
             console.log("executing " + d.glCommands.length + " commands");
         while (d.glCommands.length) {
             var obj = d.glCommands.shift();
-            if (DEBUG)
-                console.log("Calling: gl." + obj.function, obj.parameters);
+            if (DEBUG) {
+                var parameters = [];
+                for (var key in obj.parameters) {
+                    if (typeof obj.parameters[key] === 'number' &&
+                        d.glConstants[obj.parameters[key]] !== undefined) {
+                        parameters[key] = d.glConstants[obj.parameters[key]] + ' (' +
+                                          obj.parameters[key] + ')';
+                    } else {
+                        parameters[key] = obj.parameters[key];
+                    }
+                }
+                console.log("Calling: gl." + obj.function, parameters);
+            }
             var response = gl[obj.function].apply(gl, obj.parameters);
             if (response !== undefined)
                 sendResponse(obj.id, response);
@@ -1000,12 +967,17 @@ window.onload = function () {
 
         var offset = 0;
         var obj = { "parameters" : [] };
-        obj["id"] = view.getUint32(offset);
-        offset += 4;
         obj["functionNameSize"] = view.getUint32(offset);
         offset += 4;
         obj["function"] = textDecoder.decode(new Uint8Array(buffer, offset, obj.functionNameSize));
         offset += obj.functionNameSize;
+        for (var i in commandsNeedingResponse) {
+            if (commandsNeedingResponse[i] === obj.function) {
+                obj["id"] = view.getUint32(offset);
+                offset += 4;
+                break;
+            }
+        }
         obj["parameterCount"] = view.getUint32(offset);
         offset += 4;
         for (var i = 0; i < obj.parameterCount; ++i) {
@@ -1062,10 +1034,20 @@ window.onload = function () {
                 gl = windowData[winId].gl;
                 currentWindowId = winId;
                 currentContext = obj.parameters[0];
-                if (DEBUG)
-                    console.log("Current context is now " + currentContext);
                 if (currentContext)
                     ensureContextData(currentContext);
+                if (DEBUG) {
+                    console.log("Current context is now " + currentContext);
+                    var d = contextData[currentContext];
+                    if (d.glConstants === undefined) {
+                        d.glConstants = {};
+                        for (var key in gl) {
+                            if (typeof gl[key] === 'number') {
+                                d.glConstants[gl[key]] = 'gl.' + key;
+                            }
+                        }
+                    }
+                }
             }
         } else if (obj.function === "swapBuffers") {
             var data =  windowData[currentWindowId];
@@ -1177,8 +1159,11 @@ window.onload = function () {
         } else if (obj.type === "change_title") {
             document.title = obj.text;
         } else if (obj.type === "connect") {
-            var sysinfo = obj;
-            delete sysinfo["type"];
+            var sysinfo = obj["sysinfo"];
+            if (obj["debug"])
+                DEBUG = 1;
+            if (obj["loadingScreen"] === "0")
+                LOADINGSCREEN = 0;
             console.log(sysinfo);
         } else {
             console.error("Unknown message type");

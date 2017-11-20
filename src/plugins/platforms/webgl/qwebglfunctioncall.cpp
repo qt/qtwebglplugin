@@ -63,7 +63,8 @@ QWebGLFunctionCall::QWebGLFunctionCall(const QString &functionName,
     d->functionName = functionName;
     d->surface = surface;
     d->wait = wait;
-    d->id = QWebGLFunctionCallPrivate::nextId.fetchAndAddOrdered(1);
+    if (wait)
+        d->id = QWebGLFunctionCallPrivate::nextId.fetchAndAddOrdered(1);
     d->thread = QThread::currentThread();
 }
 

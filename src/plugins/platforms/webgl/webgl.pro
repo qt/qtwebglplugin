@@ -4,7 +4,6 @@ QT += \
     gui-private \
     eventdispatcher_support-private \
     fontdatabase_support-private \
-    platformcompositor_support-private \
     theme_support-private
 
 qtHaveModule(quick) {
