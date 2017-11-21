@@ -287,8 +287,6 @@ static T queryValue(int id, const T &defaultValue = T())
 }
 
 struct GLFunction;
-static QHash<QString, const GLFunction *> glFunctions;
-
 template<typename T>
 struct ParameterTypeTraits {
     static int typeId() { return qMetaTypeId<T>(); }
@@ -321,6 +319,7 @@ struct GLFunction
         bool isArray;
     };
 
+    static QHash<QString, const GLFunction *> byName;
     using ParameterList = QVector<Parameter>;
 
     GLFunction(const QString &remoteName,
@@ -330,8 +329,8 @@ struct GLFunction
         : remoteName(remoteName), localName(localName),
           functionPointer(functionPointer), parameters(parameters)
     {
-        Q_ASSERT(!glFunctions.contains(localName));
-        glFunctions.insert(localName, this);
+        Q_ASSERT(!byName.contains(localName));
+        byName.insert(localName, this);
     }
 
     GLFunction(const QString &name) : GLFunction(name, name, nullptr)
@@ -342,6 +341,8 @@ struct GLFunction
     const QFunctionPointer functionPointer;
     const ParameterList parameters;
 };
+
+QHash<QString, const GLFunction *> GLFunction::byName;
 
 template<const GLFunction *Function>
 static QWebGLFunctionCall *createEventImpl(bool wait)
@@ -1515,8 +1516,8 @@ bool QWebGLContext::isValid() const
 
 QFunctionPointer QWebGLContext::getProcAddress(const char *procName)
 {
-    const auto it = glFunctions.find(procName);
-    return it != glFunctions.end() ? (*it)->functionPointer : nullptr;
+    const auto it = GLFunction::byName.find(procName);
+    return it != GLFunction::byName.end() ? (*it)->functionPointer : nullptr;
 }
 
 int QWebGLContext::id() const
