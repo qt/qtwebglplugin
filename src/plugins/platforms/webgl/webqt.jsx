@@ -849,39 +849,39 @@ window.onload = function () {
 
     }
 
-    var commandsNeedingResponse = [
-        "swapBuffers",
-        "checkFramebufferStatus",
-        "createProgram",
-        "createShader",
-        "genBuffers",
-        "genFramebuffers",
-        "genRenderbuffers",
-        "genTextures",
-        "getAttachedShaders",
-        "getAttribLocation",
-        "getBooleanv",
-        "getError",
-        "getFramebufferAttachmentParameteriv",
-        "getIntegerv",
-        "getParameter",
-        "getProgramInfoLog",
-        "getProgramiv",
-        "getRenderbufferParameteriv",
-        "getShaderiv",
-        "getShaderPrecisionFormat",
-        "getString",
-        "getTexParameterfv",
-        "getTexParameteriv",
-        "getUniformfv",
-        "getUniformLocation",
-        "getUniformiv",
-        "getVertexAttribfv",
-        "getVertexAttribiv",
-        "getShaderSource",
-        "getShaderInfoLog",
-        "isRenderbuffer"
-    ];
+    var commandsNeedingResponse = {
+        "swapBuffers" : undefined,
+        "checkFramebufferStatus" : undefined,
+        "createProgram" : undefined,
+        "createShader" : undefined,
+        "genBuffers" : undefined,
+        "genFramebuffers" : undefined,
+        "genRenderbuffers" : undefined,
+        "genTextures" : undefined,
+        "getAttachedShaders" : undefined,
+        "getAttribLocation" : undefined,
+        "getBooleanv" : undefined,
+        "getError" : undefined,
+        "getFramebufferAttachmentParameteriv" : undefined,
+        "getIntegerv" : undefined,
+        "getParameter" : undefined,
+        "getProgramInfoLog" : undefined,
+        "getProgramiv" : undefined,
+        "getRenderbufferParameteriv" : undefined,
+        "getShaderiv" : undefined,
+        "getShaderPrecisionFormat" : undefined,
+        "getString" : undefined,
+        "getTexParameterfv" : undefined,
+        "getTexParameteriv" : undefined,
+        "getUniformfv" : undefined,
+        "getUniformLocation" : undefined,
+        "getUniformiv" : undefined,
+        "getVertexAttribfv" : undefined,
+        "getVertexAttribiv" : undefined,
+        "getShaderSource" : undefined,
+        "getShaderInfoLog" : undefined,
+        "isRenderbuffer" : undefined
+    };
 
     var ensureContextData = function (context) {
         if (!(context in contextData)) {
@@ -971,12 +971,9 @@ window.onload = function () {
         offset += 4;
         obj["function"] = textDecoder.decode(new Uint8Array(buffer, offset, obj.functionNameSize));
         offset += obj.functionNameSize;
-        for (var i in commandsNeedingResponse) {
-            if (commandsNeedingResponse[i] === obj.function) {
-                obj["id"] = view.getUint32(offset);
-                offset += 4;
-                break;
-            }
+        if (obj.function in commandsNeedingResponse) {
+            obj["id"] = view.getUint32(offset);
+            offset += 4;
         }
         obj["parameterCount"] = view.getUint32(offset);
         offset += 4;
@@ -1085,11 +1082,8 @@ window.onload = function () {
         var d = contextData[currentContext];
         if (d)
             d.glCommands.push(obj);
-        for (var i in commandsNeedingResponse)
-            if (commandsNeedingResponse[i] === obj.function) {
-                execGL(currentContext);
-                break;
-        }
+        if (obj.function in commandsNeedingResponse)
+            execGL(currentContext);
     };
 
     socket.onopen = function (event) {
