@@ -742,7 +742,7 @@ window.onload = function () {
 
         gl._uniform3fv = gl.uniform3fv;
         gl.uniform3fv = function(location, count) {
-            var d = contextData[context];
+            var d = contextData[currentContext];
             var data = [];
             for (var i = 0; i < count * 3; ++i)
                 data.push(arguments[i + 2]);
