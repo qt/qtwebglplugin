@@ -246,32 +246,33 @@ static void setVertexAttribs(QWebGLFunctionCall *event, GLsizei count)
     }
 }
 
-template<class POINTER, class SIZE>
-inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const QPair<POINTER*, SIZE> &elements)
+template<class POINTER, class COUNT>
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *event,
+                                     const QPair<POINTER, COUNT> &elements)
 {
-    if (e) {
+    if (event) {
         for (auto i = 0; i < elements.second; ++i)
-            e->add(elements.first[i]);
+            event->add(elements.first[i]);
     }
-    return e;
+    return event;
 }
 
 template<class T>
-inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const T &value)
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *event, const T &value)
 {
-    if (e)
-        e->add(value);
-    return e;
+    if (event)
+        event->add(value);
+    return event;
 }
 
 template<class T, class... Ts>
-inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *e, const T &value, const Ts&... rest)
+inline QWebGLFunctionCall *addHelper(QWebGLFunctionCall *event, const T &value, const Ts&... rest)
 {
-    if (e) {
-        e->add(value);
-        addHelper(e, rest...);
+    if (event) {
+        event->add(value);
+        addHelper(event, rest...);
     }
-    return e;
+    return event;
 }
 
 template<class T>
