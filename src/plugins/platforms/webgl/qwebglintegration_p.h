@@ -43,6 +43,7 @@
 #include <QtFontDatabaseSupport/private/qwindowsfontdatabase_p.h>
 #include <QtEventDispatcherSupport/private/qwindowsguieventdispatcher_p.h>
 #elif defined(Q_OS_MACOS)
+#include <QtFontDatabaseSupport/private/qfontengine_coretext_p.h>
 #include <QtFontDatabaseSupport/private/qcoretextfontdatabase_p.h>
 #include <QtEventDispatcherSupport/private/qgenericunixeventdispatcher_p.h>
 #else
@@ -73,7 +74,7 @@ public:
 #if defined(Q_OS_WIN)
     mutable QWindowsFontDatabase fontDatabase;
 #elif defined(Q_OS_MACOS)
-    mutable QCoreTextFontDatabase fontDatabase;
+    mutable QCoreTextFontDatabaseEngineFactory<QCoreTextFontEngine> fontDatabase;
 #else
     mutable QGenericUnixFontDatabase fontDatabase;
 #endif
