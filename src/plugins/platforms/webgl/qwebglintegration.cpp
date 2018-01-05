@@ -179,6 +179,7 @@ QPlatformTheme *QWebGLIntegration::createPlatformTheme(const QString &name) cons
 QPlatformBackingStore *QWebGLIntegration::createPlatformBackingStore(QWindow *window) const
 {
     Q_UNUSED(window);
+    qCCritical(lcWebGL, "WebGL QPA platform plugin: Raster surfaces are not supported");
     return nullptr;
 }
 
