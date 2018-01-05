@@ -107,8 +107,20 @@ QVariant QWebGLWebSocketServer::queryValue(int id)
 void QWebGLWebSocketServer::create()
 {
     Q_D(QWebGLWebSocketServer);
-    d->server = new QWebSocketServer(QLatin1String("qtwebgl"), QWebSocketServer::NonSecureMode);
-    if (d->server->listen(QHostAddress::Any)) {
+    const QString serverName = QLatin1String("qtwebgl");
+    const QUrl url(QString::fromUtf8(qgetenv("QT_WEBGL_WEBSOCKETSERVER")));
+    QHostAddress hostAddress(url.host());
+    if (!url.isValid() || url.isEmpty() || !(url.scheme() == "ws" || url.scheme() == "wss")) {
+        d->server = new QWebSocketServer(serverName, QWebSocketServer::NonSecureMode);
+        hostAddress = QHostAddress::Any;
+    } else {
+        d->server = new QWebSocketServer(serverName,
+#if QT_CONFIG(ssl)
+                                         url.scheme() == "wss" ? QWebSocketServer::SecureMode :
+#endif
+                                                                 QWebSocketServer::NonSecureMode);
+    }
+    if (d->server->listen(hostAddress, url.port(0))) {
         connect(d->server, &QWebSocketServer::newConnection,
                 this, &QWebGLWebSocketServer::onNewConnection);
     } else {
