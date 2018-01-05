@@ -145,10 +145,13 @@ void QWebGLWebSocketServer::create()
 {
     Q_D(QWebGLWebSocketServer);
     d->server = new QWebSocketServer(QLatin1String("qtwebgl"), QWebSocketServer::NonSecureMode);
-    bool ok = d->server->listen(QHostAddress::Any);
-    if (ok)
-        connect(d->server, &QWebSocketServer::newConnection, this,
-                &QWebGLWebSocketServer::onNewConnection);
+    if (d->server->listen(QHostAddress::Any)) {
+        connect(d->server, &QWebSocketServer::newConnection,
+                this, &QWebGLWebSocketServer::onNewConnection);
+    } else {
+        qCCritical(lc, "The WebSocket Server cannot start: %s",
+                   qPrintable(d->server->errorString()));
+    }
 
     QMutexLocker lock(&QWebGLIntegrationPrivate::instance()->waitMutex);
     QWebGLIntegrationPrivate::instance()->waitCondition.wakeAll();
