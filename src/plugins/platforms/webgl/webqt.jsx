@@ -958,10 +958,12 @@ window.onload = function () {
             obj["parameterCount"] = 4;
         else if (obj["function"] === "swapBuffers")
             obj["parameterCount"] = 0;
+        else if (obj["function"] == "drawArrays")
+            obj["parameterCount"] = null; // glDrawArrays has a variable number of arguments
         else
             obj["parameterCount"] = gl[obj["function"]].length;
         function deserialize(container, count) {
-            for (var i = 0; i < count; ++i) {
+            for (var i = 0; count != null ? i < count : offset + 4 < buffer.byteLength; ++i) {
                 var character = view.getUint8(offset);
                 offset += 1;
                 var parameterType = String.fromCharCode(character);
