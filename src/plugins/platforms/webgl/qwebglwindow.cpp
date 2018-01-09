@@ -149,6 +149,12 @@ QWebGLScreen *QWebGLWindow::screen() const
     return static_cast<QWebGLScreen *>(QPlatformWindow::screen());
 }
 
+void QWebGLWindow::setGeometry(const QRect &rect)
+{
+    QWindowSystemInterface::handleGeometryChange(window(), rect);
+    QPlatformWindow::setGeometry(rect);
+}
+
 void QWebGLWindow::setDefaults(const QMap<GLenum, QVariant> &values)
 {
     Q_D(QWebGLWindow);

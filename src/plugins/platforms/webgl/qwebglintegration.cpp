@@ -179,6 +179,7 @@ QPlatformTheme *QWebGLIntegration::createPlatformTheme(const QString &name) cons
 QPlatformBackingStore *QWebGLIntegration::createPlatformBackingStore(QWindow *window) const
 {
     Q_UNUSED(window);
+    qCCritical(lcWebGL, "WebGL QPA platform plugin: Raster surfaces are not supported");
     return nullptr;
 }
 
@@ -257,14 +258,13 @@ QPlatformOpenGLContext *QWebGLIntegration::createPlatformOpenGLContext(QOpenGLCo
 
 bool QWebGLIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
-    // We assume that devices will have more and not less capabilities
     switch (cap) {
-    case ThreadedPixmaps: return true;
-    case OpenGL: return true;
-    case ThreadedOpenGL: return true;
-    case WindowManagement: return false;
-    case RasterGLSurface: return true;
-    default: return QPlatformIntegration::hasCapability(cap);
+    case OpenGL:
+    case ThreadedOpenGL:
+    case ThreadedPixmaps:
+        return true;
+    default:
+        return false;
     }
 }
 

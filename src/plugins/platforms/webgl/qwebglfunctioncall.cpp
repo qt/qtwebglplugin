@@ -136,6 +136,12 @@ void QWebGLFunctionCall::addData(const QByteArray &data)
     d->parameters.append(data);
 }
 
+void QWebGLFunctionCall::addList(const QVariantList &list)
+{
+    Q_D(QWebGLFunctionCall);
+    d->parameters.append(QVariant::fromValue(list));
+}
+
 void QWebGLFunctionCall::addNull()
 {
     Q_D(QWebGLFunctionCall);

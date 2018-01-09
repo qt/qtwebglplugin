@@ -65,6 +65,7 @@ window.onload = function () {
             }
         };
     }
+    var supportedFunctions;
 
     var sendObject = function (obj) { socket.send(JSON.stringify(obj)); }
 
@@ -455,8 +456,8 @@ window.onload = function () {
 
         gl.deleteFramebuffers = function(n) {
             var d = contextData[currentContext];
-            for (var i = 0; i < n; ++i)
-                gl.deleteFramebuffer(d.framebufferMap[arguments[1 + i]]);
+            for (var i in framebuffers)
+                gl.deleteFramebuffer(d.framebufferMap[framebuffers[i]]);
         };
 
         gl._deleteProgram = gl.deleteProgram;
@@ -467,8 +468,8 @@ window.onload = function () {
 
         gl.deleteRenderbuffers = function() {
             var d = contextData[currentContext];
-            for (var i in arguments)
-                gl.deleteRenderbuffer(d.renderbufferMap[arguments[i]]);
+            for (var i in renderbuffers)
+                gl.deleteRenderbuffer(d.renderbufferMap[renderbuffers[i]]);
         };
 
         gl._deleteShader = gl.deleteShader;
@@ -477,9 +478,9 @@ window.onload = function () {
             gl._deleteShader(d.shaderMap[remoteShader].shader);
         };
 
-        gl.deleteTextures = function(n) {
-            for (var i = 0; i < n; ++i)
-                gl.deleteTexture(mapTexture(currentContext, arguments[1 + i]));
+        gl.deleteTextures = function(textures) {
+            for (var i in textures)
+                gl.deleteTexture(mapTexture(currentContext, textures[i]));
         };
 
         gl._drawElements = gl.drawElements;
@@ -708,11 +709,9 @@ window.onload = function () {
         };
 
         gl._shaderSource = gl.shaderSource;
-        gl.shaderSource = function(shader, count) {
+        gl.shaderSource = function(shader, source) {
             var d = contextData[currentContext];
-            d.shaderMap[shader].source = "";
-            for (var i = 0; i < count; ++i)
-                d.shaderMap[shader].source += arguments[2 + i] + "\n";
+            d.shaderMap[shader].source = source;
             gl._shaderSource(d.shaderMap[shader].shader, d.shaderMap[shader].source);
         };
 
@@ -723,30 +722,21 @@ window.onload = function () {
         };
 
         gl._uniform1fv = gl.uniform1fv;
-        gl.uniform1fv = function(location, count) {
+        gl.uniform1fv = function(location, value) {
             var d = contextData[currentContext];
-            var data = [];
-            for (var i = 0; i < count; ++i)
-                data.push(arguments[i + 2]);
-            gl._uniform1fv(d.uniformLocationMap[location], data);
+            gl._uniform1fv(d.uniformLocationMap[location], value);
         };
 
         gl._uniform2fv = gl.uniform2fv;
-        gl.uniform2fv = function(location, count) {
+        gl.uniform2fv = function(location, value) {
             var d = contextData[currentContext];
-            var data = [];
-            for (var i = 0; i < count * 2; ++i)
-                data.push(arguments[i + 2]);
-            gl._uniform2fv(d.uniformLocationMap[location], data);
+            gl._uniform2fv(d.uniformLocationMap[location], value);
         };
 
         gl._uniform3fv = gl.uniform3fv;
-        gl.uniform3fv = function(location, count) {
+        gl.uniform3fv = function(location, value) {
             var d = contextData[context];
-            var data = [];
-            for (var i = 0; i < count * 3; ++i)
-                data.push(arguments[i + 2]);
-            gl._uniform3fv(d.uniformLocationMap[location], data);
+            gl._uniform3fv(d.uniformLocationMap[location], value);
         };
 
         gl._uniform1i = gl.uniform1i;
@@ -756,29 +746,20 @@ window.onload = function () {
         };
 
         gl._uniform4fv = gl.uniform4fv;
-        gl.uniform4fv = function(location, count) {
+        gl.uniform4fv = function(location, value) {
             var d = contextData[currentContext];
-            var data = [];
-            for (var i = 0; i < count * 4; ++i)
-                data.push(arguments[i + 2]);
-            gl._uniform4fv(d.uniformLocationMap[location], data);
+            gl._uniform4fv(d.uniformLocationMap[location], value);
         };
 
         gl._uniformMatrix3fv = gl.uniformMatrix3fv;
-        gl.uniformMatrix3fv = function(location, count, transpose) {
+        gl.uniformMatrix3fv = function(location, transpose, data) {
             var d = contextData[currentContext];
-            var data = [];
-            for (var i = 0; i < count * 9; ++i)
-                data.push(arguments[i + 3]);
             gl._uniformMatrix3fv(d.uniformLocationMap[location], transpose, data);
         };
 
         gl._uniformMatrix4fv = gl.uniformMatrix4fv;
-        gl.uniformMatrix4fv = function(location, count, transpose) {
+        gl.uniformMatrix4fv = function(location, transpose, data) {
             var d = contextData[currentContext];
-            var data = [];
-            for (var i = 0; i < count * 16; ++i)
-                data.push(arguments[i + 3]);
             gl._uniformMatrix4fv(d.uniformLocationMap[location], transpose, data);
         };
 
@@ -849,39 +830,39 @@ window.onload = function () {
 
     }
 
-    var commandsNeedingResponse = [
-        "swapBuffers",
-        "checkFramebufferStatus",
-        "createProgram",
-        "createShader",
-        "genBuffers",
-        "genFramebuffers",
-        "genRenderbuffers",
-        "genTextures",
-        "getAttachedShaders",
-        "getAttribLocation",
-        "getBooleanv",
-        "getError",
-        "getFramebufferAttachmentParameteriv",
-        "getIntegerv",
-        "getParameter",
-        "getProgramInfoLog",
-        "getProgramiv",
-        "getRenderbufferParameteriv",
-        "getShaderiv",
-        "getShaderPrecisionFormat",
-        "getString",
-        "getTexParameterfv",
-        "getTexParameteriv",
-        "getUniformfv",
-        "getUniformLocation",
-        "getUniformiv",
-        "getVertexAttribfv",
-        "getVertexAttribiv",
-        "getShaderSource",
-        "getShaderInfoLog",
-        "isRenderbuffer"
-    ];
+    var commandsNeedingResponse = {
+        "swapBuffers" : undefined,
+        "checkFramebufferStatus" : undefined,
+        "createProgram" : undefined,
+        "createShader" : undefined,
+        "genBuffers" : undefined,
+        "genFramebuffers" : undefined,
+        "genRenderbuffers" : undefined,
+        "genTextures" : undefined,
+        "getAttachedShaders" : undefined,
+        "getAttribLocation" : undefined,
+        "getBooleanv" : undefined,
+        "getError" : undefined,
+        "getFramebufferAttachmentParameteriv" : undefined,
+        "getIntegerv" : undefined,
+        "getParameter" : undefined,
+        "getProgramInfoLog" : undefined,
+        "getProgramiv" : undefined,
+        "getRenderbufferParameteriv" : undefined,
+        "getShaderiv" : undefined,
+        "getShaderPrecisionFormat" : undefined,
+        "getString" : undefined,
+        "getTexParameterfv" : undefined,
+        "getTexParameteriv" : undefined,
+        "getUniformfv" : undefined,
+        "getUniformLocation" : undefined,
+        "getUniformiv" : undefined,
+        "getVertexAttribfv" : undefined,
+        "getVertexAttribiv" : undefined,
+        "getShaderSource" : undefined,
+        "getShaderInfoLog" : undefined,
+        "isRenderbuffer" : undefined
+    };
 
     var ensureContextData = function (context) {
         if (!(context in contextData)) {
@@ -967,57 +948,67 @@ window.onload = function () {
 
         var offset = 0;
         var obj = { "parameters" : [] };
-        obj["functionNameSize"] = view.getUint32(offset);
-        offset += 4;
-        obj["function"] = textDecoder.decode(new Uint8Array(buffer, offset, obj.functionNameSize));
-        offset += obj.functionNameSize;
-        for (var i in commandsNeedingResponse) {
-            if (commandsNeedingResponse[i] === obj.function) {
-                obj["id"] = view.getUint32(offset);
-                offset += 4;
-                break;
-            }
+        obj["function"] = supportedFunctions[view.getUint8(offset)];
+        offset += 1;
+        if (obj.function in commandsNeedingResponse) {
+            obj["id"] = view.getUint32(offset);
+            offset += 4;
         }
-        obj["parameterCount"] = view.getUint32(offset);
-        offset += 4;
-        for (var i = 0; i < obj.parameterCount; ++i) {
-            var character = view.getUint8(offset);
-            offset += 1;
-            var parameterType = String.fromCharCode(character);
-            if (parameterType === 'i') {
-                obj.parameters.push(view.getInt32(offset));
-                offset += 4;
-            } else if (parameterType === 'u') {
-                obj.parameters.push(view.getUint32(offset));
-                offset += 4;
-            } else if (parameterType === 'd') {
-                obj.parameters.push(view.getFloat64(offset));
-                offset += 8;
-            } else if (parameterType === 'b') {
-                obj.parameters.push(view.getUint8(offset) === 1);
+        if (obj["function"] === "makeCurrent")
+            obj["parameterCount"] = 4;
+        else if (obj["function"] === "swapBuffers")
+            obj["parameterCount"] = 0;
+        else if (obj["function"] == "drawArrays")
+            obj["parameterCount"] = null; // glDrawArrays has a variable number of arguments
+        else
+            obj["parameterCount"] = gl[obj["function"]].length;
+        function deserialize(container, count) {
+            for (var i = 0; count != null ? i < count : offset + 4 < buffer.byteLength; ++i) {
+                var character = view.getUint8(offset);
                 offset += 1;
-                break;
-            } else if (parameterType === 's') {
-                var stringSize = view.getUint32(offset);
-                offset += 4;
-                var string = textDecoder.decode(new Uint8Array(buffer, offset, stringSize));
-                obj.parameters.push(string);
-                offset += stringSize;
-            } else if (parameterType === 'x') {
-                var dataSize = view.getUint32(offset);
-                offset += 4;
-                var data = new Uint8Array(buffer, offset, dataSize);
-                var bytesRead = data.byteLength;
-                if (bytesRead !== dataSize)
-                    console.error("invalid data");
-                obj.parameters.push(data);
-                offset += dataSize;
-            } else if (parameterType === 'n') {
-                obj.parameters.push(null);
+                var parameterType = String.fromCharCode(character);
+                if (parameterType === 'i') {
+                    container.push(view.getInt32(offset));
+                    offset += 4;
+                } else if (parameterType === 'u') {
+                    container.push(view.getUint32(offset));
+                    offset += 4;
+                } else if (parameterType === 'd') {
+                    container.push(view.getFloat64(offset));
+                    offset += 8;
+                } else if (parameterType === 'b') {
+                    container.push(view.getUint8(offset) === 1);
+                    offset += 1;
+                    break;
+                } else if (parameterType === 's') {
+                    var stringSize = view.getUint32(offset);
+                    offset += 4;
+                    var string = textDecoder.decode(new Uint8Array(buffer, offset, stringSize));
+                    container.push(string);
+                    offset += stringSize;
+                } else if (parameterType === 'x') {
+                    var dataSize = view.getUint32(offset);
+                    offset += 4;
+                    var data = new Uint8Array(buffer, offset, dataSize);
+                    var bytesRead = data.byteLength;
+                    if (bytesRead !== dataSize)
+                        console.error("invalid data");
+                    container.push(data);
+                    offset += dataSize;
+                } else if (parameterType === 'n') {
+                    container.push(null);
+                } else if (parameterType === 'a') {
+                    var dataSize = view.getUint8(offset);
+                    offset += 1;
+                    deserialize(container[container.push([]) - 1], dataSize);
+                } else {
+                    console.error("Unsupported type :" + character);
+                }
             }
-        }
+        };
+        deserialize(obj.parameters, obj.parameterCount);
         var magic = view.getUint32(offset);
-        if (magic !== 0xbaadf00d)
+        if (magic !== 0xbaadf00d) // sentinel expected at end of buffer
             console.error('Invalid magic');
         offset += 4;
         if (offset !== buffer.byteLength)
@@ -1085,11 +1076,8 @@ window.onload = function () {
         var d = contextData[currentContext];
         if (d)
             d.glCommands.push(obj);
-        for (var i in commandsNeedingResponse)
-            if (commandsNeedingResponse[i] === obj.function) {
-                execGL(currentContext);
-                break;
-        }
+        if (obj.function in commandsNeedingResponse)
+            execGL(currentContext);
     };
 
     socket.onopen = function (event) {
@@ -1159,6 +1147,7 @@ window.onload = function () {
         } else if (obj.type === "change_title") {
             document.title = obj.text;
         } else if (obj.type === "connect") {
+            supportedFunctions = obj["supportedFunctions"];
             var sysinfo = obj["sysinfo"];
             if (obj["debug"])
                 DEBUG = 1;

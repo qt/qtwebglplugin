@@ -175,45 +175,54 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
         QByteArray data;
         {
             QDataStream stream(&data, QIODevice::WriteOnly);
-            stream << functionName;
+            stream << QWebGLContext::functionIndex(functionName);
             if (values.contains("id")) {
                 auto ok = false;
                 stream << quint32(values["id"].toUInt(&ok));
                 Q_ASSERT(ok);
             }
-            stream << parameterCount;
-            for (const auto &value : qAsConst(parameters)) {
-                if (value.isNull()) {
-                    stream << (quint8)'n';
-                } else switch (value.type()) {
-                case QVariant::Int:
-                    stream << (quint8)'i' << value.toInt();
-                    break;
-                case QVariant::UInt:
-                    stream << (quint8)'u' << value.toUInt();
-                    break;
-                case QVariant::Bool:
-                    stream << (quint8)'b' << (quint8)value.toBool();
-                    break;
-                case QVariant::Double:
-                    stream << (quint8)'d' << value.toDouble();
-                    break;
-                case QVariant::String:
-                    stream << (quint8)'s' << value.toString().toUtf8();
-                    break;
-                case QVariant::ByteArray: {
-                    const auto byteArray = value.toByteArray();
-                    if (byteArray.isNull())
+            const std::function<void(const QVariantList &)> serialize = [&stream, &serialize](
+                    const QVariantList &parameters) {
+                for (const auto &value : parameters) {
+                    if (value.isNull()) {
                         stream << (quint8)'n';
-                    else
-                        stream << (quint8)'x' << byteArray;
-                    break;
+                    } else switch (value.type()) {
+                    case QVariant::Int:
+                        stream << (quint8)'i' << value.toInt();
+                        break;
+                    case QVariant::UInt:
+                        stream << (quint8)'u' << value.toUInt();
+                        break;
+                    case QVariant::Bool:
+                        stream << (quint8)'b' << (quint8)value.toBool();
+                        break;
+                    case QVariant::Double:
+                        stream << (quint8)'d' << value.toDouble();
+                        break;
+                    case QVariant::String:
+                        stream << (quint8)'s' << value.toString().toUtf8();
+                        break;
+                    case QVariant::ByteArray: {
+                        const auto byteArray = value.toByteArray();
+                        if (byteArray.isNull())
+                            stream << (quint8)'n';
+                        else
+                            stream << (quint8)'x' << byteArray;
+                        break;
+                    }
+                    case QVariant::List: {
+                        const auto list = value.toList();
+                        stream << quint8('a') << quint8(list.size());
+                        serialize(list);
+                        break;
+                    }
+                    default:
+                        qCCritical(lc, "Unsupported type: %d", value.type());
+                        break;
+                    }
                 }
-                default:
-                    qCCritical(lc, "Unsupported type: %d", value.type());
-                    break;
-                }
-            }
+            };
+            serialize(parameters);
             stream << (quint32)0xbaadf00d;
         }
         const quint32 totalMessageSize = data.size();
@@ -295,6 +304,8 @@ void QWebGLWebSocketServer::onNewConnection()
 #endif
             },
             { QStringLiteral("loadingScreen"), qgetenv("QT_WEBGL_LOADINGSCREEN") },
+            { QStringLiteral("supportedFunctions"),
+              QVariant::fromValue(QWebGLContext::supportedFunctions()) },
             { "sysinfo",
                 QVariantMap {
                     { QStringLiteral("buildAbi"), QSysInfo::buildAbi() },

@@ -64,6 +64,7 @@ public:
     void addUInt(uint value);
     void addFloat(float value);
     void addData(const QByteArray &data);
+    void addList(const QVariantList &list);
     void addNull();
 
     void add(const QString &value) { addString(value); }
@@ -72,6 +73,7 @@ public:
     void add(uint value) { addUInt(value); }
     void add(float value) { addFloat(value); }
     void add(const QByteArray &data) { addData(data); }
+    void add(const QVariantList &list) { addList(list); }
     void add(std::nullptr_t) { addNull(); }
 
     template<class...Ts>
