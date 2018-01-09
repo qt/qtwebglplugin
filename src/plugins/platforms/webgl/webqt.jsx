@@ -1008,7 +1008,7 @@ window.onload = function () {
         };
         deserialize(obj.parameters, obj.parameterCount);
         var magic = view.getUint32(offset);
-        if (magic !== 0xbaadf00d)
+        if (magic !== 0xbaadf00d) // sentinel expected at end of buffer
             console.error('Invalid magic');
         offset += 4;
         if (offset !== buffer.byteLength)
