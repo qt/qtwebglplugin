@@ -63,6 +63,7 @@ public:
 
     QWebGLScreen *screen() const;
 
+    void setGeometry(const QRect &rect) override;
     void setDefaults(const QMap<GLenum, QVariant> &values);
 
 private:
