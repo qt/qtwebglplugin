@@ -90,16 +90,6 @@ window.onload = function () {
         sendObject({ "type": "gl_response", "id": id, "value": value });
     };
 
-    var sendResize = function (width, height, physicalWidth, physicalHeight) {
-        if (DEBUG)
-            console.log("Resizing canvas to " + width + " x " + height);
-        var object = { "type": "canvas_resize",
-            "width": width, "height": height,
-            "physicalWidth" : physicalWidth, "physicalHeight" : physicalHeight
-        };
-        sendObject(socket);
-    };
-
     var createLoadingCanvas = function(name, x, y, width, height) {
         var canvas = document.createElement("canvas");
         canvas.id = "loading_" + name;
@@ -1089,13 +1079,13 @@ window.onload = function () {
                 var width = size.width;
                 var height = size.height;
                 var physicalSize = physicalSizeRatio();
-
-                var object = { "type" : "canvas_resize",
+                if (DEBUG)
+                    console.log("Resizing canvas to " + width + " x " + height);
+                sendObject({ "type" : "canvas_resize",
                     "width" : width, "height" : height,
                     "physicalWidth" : width / physicalSize.width,
                     "physicalHeight" : height / physicalSize.height
-                };
-                sendObject(object);
+                });
             };
             window.addEventListener("resize",(function(){
                 if(doCheck){
