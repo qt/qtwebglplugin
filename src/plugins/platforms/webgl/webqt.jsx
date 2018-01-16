@@ -1172,7 +1172,7 @@ window.onload = function () {
                 "metaKey" : event.metaKey,
                 "string" : String.fromCharCode(event.which ||
                                                event.keyCode),
-                "keyCode" : event.keyCode, "charCode" : event.charCode,
+                "keyCode" : event.keyCode, "charCode" : event.charCode, "code" : event.code,
                 "time" : new Date().getTime(),
             };
             sendObject(object);
