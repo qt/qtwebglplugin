@@ -55,43 +55,6 @@ QT_BEGIN_NAMESPACE
 
 static Q_LOGGING_CATEGORY(lc, "qt.qpa.webgl.websocketserver")
 
-const QHash<QString, Qt::Key> keyMap {
-    { "Alt", Qt::Key_Alt },
-    { "ArrowDown", Qt::Key_Down },
-    { "ArrowLeft", Qt::Key_Left },
-    { "ArrowRight", Qt::Key_Right },
-    { "ArrowUp", Qt::Key_Up },
-    { "Backspace", Qt::Key_Backspace },
-    { "Control", Qt::Key_Control },
-    { "Delete", Qt::Key_Delete },
-    { "End", Qt::Key_End },
-    { "Enter", Qt::Key_Enter },
-    { "F1", Qt::Key_F1 },
-    { "F2", Qt::Key_F2 },
-    { "F3", Qt::Key_F3 },
-    { "F4", Qt::Key_F4 },
-    { "F5", Qt::Key_F5 },
-    { "F6", Qt::Key_F6 },
-    { "F7", Qt::Key_F7 },
-    { "F8", Qt::Key_F8 },
-    { "F9", Qt::Key_F9 },
-    { "F10", Qt::Key_F10 },
-    { "F11", Qt::Key_F11 },
-    { "F12", Qt::Key_F12 },
-    { "Escape", Qt::Key_Escape },
-    { "Home", Qt::Key_Home },
-    { "Insert", Qt::Key_Insert },
-    { "Meta", Qt::Key_Meta },
-    { "PageDown", Qt::Key_PageDown },
-    { "PageUp", Qt::Key_PageUp },
-    { "Shift", Qt::Key_Shift },
-    { "Space", Qt::Key_Space },
-    { "AltGraph", Qt::Key_AltGr },
-    { "Tab", Qt::Key_Tab },
-    { "Unidentified", Qt::Key_F },
-    { "OS", Qt::Key_Super_L }
-};
-
 inline QWebGLIntegration *webGLIntegration()
 {
 #ifdef QT_DEBUG
@@ -145,10 +108,13 @@ void QWebGLWebSocketServer::create()
 {
     Q_D(QWebGLWebSocketServer);
     d->server = new QWebSocketServer(QLatin1String("qtwebgl"), QWebSocketServer::NonSecureMode);
-    bool ok = d->server->listen(QHostAddress::Any);
-    if (ok)
-        connect(d->server, &QWebSocketServer::newConnection, this,
-                &QWebGLWebSocketServer::onNewConnection);
+    if (d->server->listen(QHostAddress::Any)) {
+        connect(d->server, &QWebSocketServer::newConnection,
+                this, &QWebGLWebSocketServer::onNewConnection);
+    } else {
+        qCCritical(lc, "The WebSocket Server cannot start: %s",
+                   qPrintable(d->server->errorString()));
+    }
 
     QMutexLocker lock(&QWebGLIntegrationPrivate::instance()->waitMutex);
     QWebGLIntegrationPrivate::instance()->waitCondition.wakeAll();

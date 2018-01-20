@@ -454,7 +454,7 @@ window.onload = function () {
                 gl.deleteBuffer(d.bufferMap[arguments[1 +i]]);
         };
 
-        gl.deleteFramebuffers = function(n) {
+        gl.deleteFramebuffers = function(framebuffers) {
             var d = contextData[currentContext];
             for (var i in framebuffers)
                 gl.deleteFramebuffer(d.framebufferMap[framebuffers[i]]);
@@ -466,7 +466,7 @@ window.onload = function () {
             gl._deleteProgram(d.programMap[program]);
         };
 
-        gl.deleteRenderbuffers = function() {
+        gl.deleteRenderbuffers = function(renderbuffers) {
             var d = contextData[currentContext];
             for (var i in renderbuffers)
                 gl.deleteRenderbuffer(d.renderbufferMap[renderbuffers[i]]);
@@ -1172,7 +1172,7 @@ window.onload = function () {
                 "metaKey" : event.metaKey,
                 "string" : String.fromCharCode(event.which ||
                                                event.keyCode),
-                "keyCode" : event.keyCode, "charCode" : event.charCode,
+                "keyCode" : event.keyCode, "charCode" : event.charCode, "code" : event.code,
                 "time" : new Date().getTime(),
             };
             sendObject(object);

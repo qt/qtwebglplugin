@@ -628,6 +628,13 @@ void QWebGLIntegrationPrivate::handleKeyboard(const ClientData &clientData,
     if (specialKey != keyMap.end()) {
         key = *specialKey;
         string.clear();
+
+        // special case: match Qt's behavior on other platforms and differentiate:
+        // * "Enter": Qt::Key_Return
+        // * "NumpadEnter": Qt::Key_Enter
+        // TODO: consider whether "code" could be used rather than "keyName" above
+        if (key == Qt::Key_Enter && object.value("code").toString() == QStringLiteral("Enter"))
+            key = Qt::Key_Return;
     }
 
     const auto window = clientData.platformWindows.last()->window();
