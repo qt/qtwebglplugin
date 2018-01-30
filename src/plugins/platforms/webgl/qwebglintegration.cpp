@@ -115,8 +115,10 @@ void QWebGLIntegration::initialize()
     d->webSocketServer = new QWebGLWebSocketServer;
     d->httpServer = new QWebGLHttpServer(d->webSocketServer, this);
     bool ok = d->httpServer->listen(QHostAddress::Any, d->httpPort);
-    if (!ok)
-        qFatal("QWebGLIntegration::initialize: Failed to initialize");
+    if (!ok) {
+        qFatal("QWebGLIntegration::initialize: Failed to initialize: %s",
+               qPrintable(d->httpServer->errorString()));
+    }
     d->webSocketServerThread = new QThread(this);
     d->webSocketServerThread->setObjectName("WebSocketServer");
     d->webSocketServer->moveToThread(d->webSocketServerThread);
