@@ -382,39 +382,44 @@ static void postEventImpl(QWebGLFunctionCall *event)
 }
 
 template<const GLFunction *Function, class... Ts>
-static QWebGLFunctionCall *createEventAndPostImpl(bool wait, Ts&&... arguments)
+static int createEventAndPostImpl(bool wait, Ts&&... arguments)
 {
     auto event = createEventImpl<Function>(wait);
+    auto id = -1;
     if (event) {
+        id = event->id();
         addHelper(event, arguments...);
         postEventImpl(event);
     }
-    return event;
+    return id;
 }
 
 template<const GLFunction *Function>
-static QWebGLFunctionCall *createEventAndPostImpl(bool wait)
+static int createEventAndPostImpl(bool wait)
 {
     auto event = createEventImpl<Function>(wait);
-    if (event)
+    auto id = -1;
+    if (event) {
+        id = event->id();
         postEventImpl(event);
-    return event;
+    }
+    return id;
 }
 
 template<const GLFunction *Function, class... Ts>
-inline QWebGLFunctionCall *postEventImpl(bool wait, Ts&&... arguments)
+inline int postEventImpl(bool wait, Ts&&... arguments)
 {
     return createEventAndPostImpl<Function>(wait, arguments...);
 }
 
 template<const GLFunction *Function>
-inline QWebGLFunctionCall *postEvent(bool wait)
+inline int postEvent(bool wait)
 {
     return createEventAndPostImpl<Function>(wait);
 }
 
 template<const GLFunction *Function, class...Ts>
-inline QWebGLFunctionCall *postEvent(Ts&&... arguments)
+inline int postEvent(Ts&&... arguments)
 {
     return postEventImpl<Function>(false, arguments...);
 }
@@ -423,8 +428,8 @@ template<const GLFunction *Function, class ReturnType, class...Ts>
 static ReturnType postEventAndQuery(ReturnType defaultValue,
                                     Ts&&... arguments)
 {
-    const auto event = postEventImpl<Function>(true, arguments...);
-    return event ? queryValue(event->id(), defaultValue) : defaultValue;
+    auto id = postEventImpl<Function>(true, arguments...);
+    return id != -1 ? queryValue(id, defaultValue) : defaultValue;
 }
 
 namespace QWebGL {
