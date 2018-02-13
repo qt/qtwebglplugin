@@ -725,7 +725,7 @@ window.onload = function () {
 
         gl._uniform3fv = gl.uniform3fv;
         gl.uniform3fv = function(location, value) {
-            var d = contextData[context];
+            var d = contextData[currentContext];
             gl._uniform3fv(d.uniformLocationMap[location], value);
         };
 
