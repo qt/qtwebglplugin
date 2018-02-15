@@ -816,8 +816,6 @@ window.onload = function () {
         gl.vertexAttribPointer = function (index, size, type, normalized, stride, pointer) {
             gl._vertexAttribPointer(index, size, type, normalized, stride, pointer);
         }
-
-
     }
 
     var commandsNeedingResponse = {
