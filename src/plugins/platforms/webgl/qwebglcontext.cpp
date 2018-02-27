@@ -871,8 +871,12 @@ QWEBGL_FUNCTION(getIntegerv, void, glGetIntegerv,
                 (GLenum) pname, (GLint *) data)
 {
     if (pname == GL_MAX_TEXTURE_SIZE) {
-        *data = 512;
-        return;
+        static bool ok;
+        static auto value = qgetenv("QT_WEBGL_MAX_TEXTURE_SIZE").toUInt(&ok);
+        if (ok) {
+            *data = value;
+            return;
+        }
     }
     const auto it = currentContextData()->cachedParameters.find(pname);
     if (it != currentContextData()->cachedParameters.end()) {
