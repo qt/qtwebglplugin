@@ -267,10 +267,10 @@ window.onload = function () {
             event.returnValue = false;
         }
 
-        if ("onmousewheel" in canvas)
-            canvas.onmousewheel = handleMouseWheel;
-        else
-            canvas.addEventListener('DOMMouseScroll', handleMouseWheel, false);
+        // Internet Explorer, Opera, Chrome and Safari
+        canvas.addEventListener('mousewheel', handleMouseWheel, { passive: true });
+        // Firefox
+        canvas.addEventListener('DOMMouseScroll', handleMouseWheel, { passive: true });
 
         function handleTouch(event) {
             var object = {};
@@ -323,10 +323,10 @@ window.onload = function () {
             event.returnValue = false;
         }
 
-        canvas.addEventListener("touchstart", handleTouch, false);
-        canvas.addEventListener("touchend", handleTouch, false);
-        canvas.addEventListener("touchcancel", handleTouch, false);
-        canvas.addEventListener("touchmove", handleTouch, false);
+        canvas.addEventListener("touchstart", handleTouch, { passive: true });
+        canvas.addEventListener("touchend", handleTouch, { passive: true });
+        canvas.addEventListener("touchcancel", handleTouch, { passive: true });
+        canvas.addEventListener("touchmove", handleTouch, { passive: true });
 
         canvas.oncontextmenu = function (event) {
             event.preventDefault();
