@@ -213,7 +213,7 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
 
     QWebGLWindow *platformWindow = nullptr;
     QWebSocket *socket = nullptr;
-    WId winId = -1;
+    auto winId = WId(-1);
     {
         QMutexLocker locker(&d->clients.mutex);
 
@@ -493,6 +493,8 @@ void QWebGLIntegrationPrivate::handleMouse(const ClientData &clientData, const Q
                                              localPos,
                                              globalPos,
                                              Qt::MouseButtons(buttons),
+                                             Qt::NoButton,
+                                             QEvent::None,
                                              Qt::NoModifier,
                                              Qt::MouseEventNotSynthesized);
 }
@@ -510,12 +512,15 @@ void QWebGLIntegrationPrivate::handleWheel(const ClientData &clientData, const Q
     const int deltaX = -object.value("deltaX").toInt(0);
     const int deltaY = -object.value("deltaY").toInt(0);
     auto orientation = deltaY != 0 ? Qt::Vertical : Qt::Horizontal;
+
+    QPoint point = (orientation == Qt::Vertical) ? QPoint(0, deltaY) : QPoint(deltaX, 0);
     QWindowSystemInterface::handleWheelEvent(platformWindow->window(),
                                              time,
                                              localPos,
                                              globalPos,
-                                             orientation == Qt::Vertical ? deltaY : deltaX,
-                                             orientation);
+                                             QPoint(),
+                                             point,
+                                             Qt::NoModifier);
 }
 
 void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const QJsonObject &object)
