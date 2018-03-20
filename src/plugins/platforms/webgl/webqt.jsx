@@ -190,8 +190,8 @@ window.onload = function () {
     };
 
     var createCanvas = function (name, x, y, width, height, title) {
+        var body = document.getElementsByTagName("body")[0];
         if (initialLoadingCanvas) {
-            var body = document.getElementsByTagName("body")[0];
             body.removeChild(initialLoadingCanvas);
             initialLoadingCanvas = undefined;
         }
@@ -205,7 +205,6 @@ window.onload = function () {
         canvas.style.zIndex = currentZIndex++;
         canvas.width = width;
         canvas.height = height;
-        var body = document.getElementsByTagName("body")[0];
         body.appendChild(canvas);
 
         var qtButtons = 0;
