@@ -990,7 +990,7 @@ window.onload = function () {
                     console.error("Unsupported type :" + character);
                 }
             }
-        };
+        }
         deserialize(obj.parameters, obj.parameterCount);
         var magic = view.getUint32(offset);
         if (magic !== 0xbaadf00d) // sentinel expected at end of buffer
