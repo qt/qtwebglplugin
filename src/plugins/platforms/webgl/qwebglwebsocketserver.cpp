@@ -203,14 +203,7 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
             serialize(parameters);
             stream << (quint32)0xbaadf00d;
         }
-        const quint32 totalMessageSize = data.size();
-        const quint32 maxMessageSize = 1024;
-        for (quint32 i = 0; i <= data.size() / maxMessageSize; ++i) {
-            const quint32 offset = i * maxMessageSize;
-            const quint32 size = qMin(totalMessageSize - offset, maxMessageSize);
-            const auto chunk = QByteArray::fromRawData(data.constData() + offset, size);
-            socket->sendBinaryMessage(chunk);
-        }
+        socket->sendBinaryMessage(data);
         return;
     }
     case MessageType::CreateCanvas:

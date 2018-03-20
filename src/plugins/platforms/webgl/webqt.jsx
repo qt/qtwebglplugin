@@ -48,7 +48,6 @@ window.onload = function () {
     var SWAP_DELAY = 16; //${swap_delay};
     var contextData = { }; // context -> { shaderMap, programMap, ... }
     var currentContext = 0;
-    var binaryDataBuffer = new Uint8Array(0);
     var currentWindowId = "";
     var windowData = {};
     var currentZIndex = 1;
@@ -916,21 +915,7 @@ window.onload = function () {
     };
 
     var handleBinaryMessage = function (event) {
-        var appendBuffer = function(buffer1, buffer2) {
-          var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
-          tmp.set(new Uint8Array(buffer1), 0);
-          tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
-          return tmp.buffer;
-        };
-
-        var buffer = appendBuffer(binaryDataBuffer, event.data);
-        var view = new DataView(buffer);
-        if (view.getUint32(buffer.byteLength - 4) !== 0xbaadf00d) {
-            binaryDataBuffer = buffer;
-            return;
-        }
-        binaryDataBuffer = new ArrayBuffer(0);
-
+        var view = new DataView(event.data);
         var offset = 0;
         var obj = { "parameters" : [] };
         obj["function"] = supportedFunctions[view.getUint8(offset)];
@@ -948,7 +933,7 @@ window.onload = function () {
         else
             obj["parameterCount"] = gl[obj["function"]].length;
         function deserialize(container, count) {
-            for (var i = 0; count != null ? i < count : offset + 4 < buffer.byteLength; ++i) {
+            for (var i = 0; count != null ? i < count : offset + 4 < event.data.byteLength; ++i) {
                 var character = view.getUint8(offset);
                 offset += 1;
                 var parameterType = String.fromCharCode(character);
@@ -968,13 +953,13 @@ window.onload = function () {
                 } else if (parameterType === 's') {
                     var stringSize = view.getUint32(offset);
                     offset += 4;
-                    var string = textDecoder.decode(new Uint8Array(buffer, offset, stringSize));
+                    var string = textDecoder.decode(new Uint8Array(event.data, offset, stringSize));
                     container.push(string);
                     offset += stringSize;
                 } else if (parameterType === 'x') {
                     var dataSize = view.getUint32(offset);
                     offset += 4;
-                    var data = new Uint8Array(buffer, offset, dataSize);
+                    var data = new Uint8Array(event.data, offset, dataSize);
                     var bytesRead = data.byteLength;
                     if (bytesRead !== dataSize)
                         console.error("invalid data");
@@ -996,7 +981,7 @@ window.onload = function () {
         if (magic !== 0xbaadf00d) // sentinel expected at end of buffer
             console.error('Invalid magic');
         offset += 4;
-        if (offset !== buffer.byteLength)
+        if (offset !== event.data.byteLength)
             console.error("Invalid buffer");
 
         if (!("function" in obj)) {
