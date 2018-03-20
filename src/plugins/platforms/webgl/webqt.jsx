@@ -336,7 +336,7 @@ window.onload = function () {
 
         var gl = getContext(canvas);
         gl.clear([ gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT]);
-        var data = windowData[name] = {
+        windowData[name] = {
             "canvas" : canvas,
             "gl" : gl,
             "loadingCanvas" : createLoadingCanvas(name, x, y, width, height)
@@ -580,7 +580,6 @@ window.onload = function () {
 
         gl.getShaderiv = function(shader, pname) {
             var d = contextData[currentContext];
-            var p;
             if (pname === 0x8B88)
                 return d.shaderMap[shader].source.length;
             else
@@ -594,7 +593,6 @@ window.onload = function () {
         };
 
         gl.getString = function(pname) {
-            var result = "";
             return gl.getParameter(pname);
         };
 
