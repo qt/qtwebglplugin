@@ -67,7 +67,7 @@ window.onload = function () {
     }
     var supportedFunctions;
 
-    var sendObject = function (obj) { socket.send(JSON.stringify(obj)); }
+    var sendObject = function (obj) { socket.send(JSON.stringify(obj)); };
 
     var connect = function () {
         var size = getBrowserSize();
@@ -405,7 +405,7 @@ window.onload = function () {
         gl._clearColor = gl.clearColor;
         gl.clearColor = function (red, green, blue, alpha) {
             gl._clearColor(red, green, blue, alpha);
-        }
+        };
 
         gl.clearDepthf = function(depth) {
             gl.clearDepth(depth);
@@ -505,7 +505,7 @@ window.onload = function () {
             var d = contextData[currentContext];
             var data = [];
             for (var i = 0; i < n; ++i) {
-                var remoteBuf = d.nextBufferId++
+                var remoteBuf = d.nextBufferId++;
                 var localBuf = gl.createBuffer();
                 data.push(remoteBuf);
                 d.bufferMap[remoteBuf] = localBuf;
@@ -642,7 +642,7 @@ window.onload = function () {
                 return gl._isRenderBuffer(renderbuffer);
             var d = contextData[currentContext];
             return gl._isRenderbuffer(d.renderbufferMap[renderbuffer]);
-        }
+        };
 
         gl._linkProgram = gl.linkProgram;
         gl.linkProgram = function(program) {
@@ -760,19 +760,19 @@ window.onload = function () {
         gl.vertexAttrib1fv = function (index, v0) {
             var values = new Float32Array([v0]);
             gl._vertexAttrib1fv(index, values);
-        }
+        };
 
         gl._vertexAttrib2fv = gl.vertexAttrib2fv;
         gl.vertexAttrib2fv = function (index, v0, v1) {
             var values = new Float32Array([v0, v1]);
             gl._vertexAttrib2fv(index, values);
-        }
+        };
 
         gl._vertexAttrib3fv = gl.vertexAttrib3fv;
         gl.vertexAttrib3fv = function (index, v0, v1, v2) {
             var values = new Float32Array([v0, v1, v2]);
             gl._vertexAttrib3fv(index, values);
-        }
+        };
 
         gl._drawArrays = gl.drawArrays;
         gl.drawArrays = function (mode, first, count/*, size*/) {
@@ -807,13 +807,13 @@ window.onload = function () {
                 offset += subDataParts[part].data.length;
             }
             gl._drawArrays(mode, first, count);
-        }
+        };
 
         gl._vertexAttribPointer = gl.vertexAttribPointer;
         gl.vertexAttribPointer = function (index, size, type, normalized, stride, pointer) {
             gl._vertexAttribPointer(index, size, type, normalized, stride, pointer);
-        }
-    }
+        };
+    };
 
     var commandsNeedingResponse = {
         "swapBuffers" : undefined,
@@ -997,7 +997,7 @@ window.onload = function () {
             console.error('Invalid magic');
         offset += 4;
         if (offset !== buffer.byteLength)
-            console.error("Invalid buffer")
+            console.error("Invalid buffer");
 
         if (!("function" in obj)) {
             console.error("Function not found");
@@ -1037,7 +1037,7 @@ window.onload = function () {
                 var t0 = performance.now();
             execGL(currentContext);
             if (startTime) {
-                console.log((new Date() - startTime) + "ms to first frame.")
+                console.log((new Date() - startTime) + "ms to first frame.");
                 startTime = undefined;
             }
             var frameTime = performance.now() - t0;
@@ -1049,7 +1049,7 @@ window.onload = function () {
         } else {
             handleGlesMessage(obj);
         }
-    }
+    };
 
     var handleGlesMessage = function (obj) {
         // A GLES call. Unfortunately WebGL swaps when the control gets back to
@@ -1089,7 +1089,7 @@ window.onload = function () {
                     setTimeout((function(){
                         doCheck = true;
                         check();
-                    }), 1000)
+                    }), 1000);
                 }
             }));
         })();
