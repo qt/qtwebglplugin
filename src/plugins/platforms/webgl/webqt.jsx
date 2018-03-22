@@ -274,29 +274,30 @@ window.onload = function () {
         canvas.addEventListener('DOMMouseScroll', handleMouseWheel, { passive: true });
 
         function handleTouch(event) {
-            var object = {};
-            object["type"] = "touch";
-            object["name"] = name;
-            object["time"] = new Date().getTime();
-            object["event"] = event.type;
-            object["changedTouches"] = [];
-            object["stationaryTouches"] = [];
-
+            var object = {
+                "type" : "touch",
+                "name" : name,
+                "time" : new Date().getTime(),
+                "event" : event.type,
+                "changedTouches" : [],
+                "stationaryTouches" : [],
+            };
             var addTouch = function(changedTouch, isChanged) {
-                var touch = {};
-                touch["clientX"] = changedTouch.clientX;
-                touch["clientY"] = changedTouch.clientY;
-                touch["force"] = changedTouch.force;
-                touch["identifier"] = changedTouch.identifier;
-                touch["pageX"] = changedTouch.pageX;
-                touch["pageY"] = changedTouch.pageY;
-                touch["radiousX"] = changedTouch.radiousX;
-                touch["radiousY"] = changedTouch.radiousY;
-                touch["rotatingAngle"] = changedTouch.rotatingAngle;
-                touch["screenX"] = changedTouch.screenX;
-                touch["screenY"] = changedTouch.screenY;
-                touch["normalPositionX"] = changedTouch.screenX / screen.width;
-                touch["normalPositionY"] = changedTouch.screenY / screen.height;
+                var touch = {
+                    "clientX" : changedTouch.clientX,
+                    "clientY" : changedTouch.clientY,
+                    "force" : changedTouch.force,
+                    "identifier" : changedTouch.identifier,
+                    "pageX" : changedTouch.pageX,
+                    "pageY" : changedTouch.pageY,
+                    "radiousX" : changedTouch.radiousX,
+                    "radiousY" : changedTouch.radiousY,
+                    "rotatingAngle" : changedTouch.rotatingAngle,
+                    "screenX" : changedTouch.screenX,
+                    "screenY" : changedTouch.screenY,
+                    "normalPositionX" : changedTouch.screenX / screen.width,
+                    "normalPositionY" : changedTouch.screenY / screen.height,
+                };
                 if (isChanged)
                     object.changedTouches.push(touch);
                 else
@@ -786,14 +787,15 @@ window.onload = function () {
                 d.drawArrayBuf = gl.createBuffer();
             gl._bindBuffer(gl.ARRAY_BUFFER, d.drawArrayBuf);
             for (var i = 4; i < arguments.length; i += 6) {
-                var subData = {};
-                subData["index"] = arguments[i + 0];
-                subData["size"] = arguments[i + 1];
-                subData["type"] = arguments[i + 2];
-                subData["normalized"] = arguments[i + 3];
-                subData["stride"] = arguments[i + 4];
-                subData["offset"] = 0;
-                subData["data"] = arguments[i + 5];
+                var subData = {
+                    "index" : arguments[i + 0],
+                    "size" : arguments[i + 1],
+                    "type" : arguments[i + 2],
+                    "normalized" : arguments[i + 3],
+                    "stride" : arguments[i + 4],
+                    "offset" : 0,
+                    "data" : arguments[i + 5],
+                };
                 subDataParts.push(subData);
                 bufferSize += subData.data.length;
             }
@@ -921,20 +923,20 @@ window.onload = function () {
         var view = new DataView(event.data);
         var offset = 0;
         var obj = { "parameters" : [] };
-        obj["function"] = supportedFunctions[view.getUint8(offset)];
+        obj.function = supportedFunctions[view.getUint8(offset)];
         offset += 1;
         if (obj.function in commandsNeedingResponse) {
-            obj["id"] = view.getUint32(offset);
+            obj.id = view.getUint32(offset);
             offset += 4;
         }
-        if (obj["function"] === "makeCurrent")
-            obj["parameterCount"] = 4;
-        else if (obj["function"] === "swapBuffers")
-            obj["parameterCount"] = 0;
-        else if (obj["function"] == "drawArrays")
-            obj["parameterCount"] = null; // glDrawArrays has a variable number of arguments
+        if (obj.function === "makeCurrent")
+            obj.parameterCount = 4;
+        else if (obj.function === "swapBuffers")
+            obj.parameterCount = 0;
+        else if (obj.function == "drawArrays")
+            obj.parameterCount = null; // glDrawArrays has a variable number of arguments
         else
-            obj["parameterCount"] = gl[obj["function"]].length;
+            obj.parameterCount = gl[obj.function].length;
         function deserialize(container, count) {
             for (var i = 0; count != null ? i < count : offset + 4 < event.data.byteLength; ++i) {
                 var character = view.getUint8(offset);
@@ -1120,11 +1122,11 @@ window.onload = function () {
         } else if (obj.type === "change_title") {
             document.title = obj.text;
         } else if (obj.type === "connect") {
-            supportedFunctions = obj["supportedFunctions"];
-            var sysinfo = obj["sysinfo"];
-            if (obj["debug"])
+            supportedFunctions = obj.supportedFunctions;
+            var sysinfo = obj.sysinfo;
+            if (obj.debug)
                 DEBUG = 1;
-            if (obj["loadingScreen"] === "0")
+            if (obj.loadingScreen === "0")
                 LOADINGSCREEN = 0;
             console.log(sysinfo);
         } else {
