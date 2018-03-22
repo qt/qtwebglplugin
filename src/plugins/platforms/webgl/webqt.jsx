@@ -227,6 +227,7 @@ window.onload = function () {
         };
 
         canvas.onmousedown = function (event) {
+            /* jslint bitwise: true */
             qtButtons |= mapButton(event.button);
             sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
                            name);
@@ -238,6 +239,7 @@ window.onload = function () {
         };
 
         canvas.onmouseup = function (event) {
+            /* jslint bitwise: true */
             qtButtons &= ~mapButton(event.button);
             sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
                            name);
@@ -333,6 +335,7 @@ window.onload = function () {
 
 
         var gl = getContext(canvas);
+        /* jslint bitwise: true */
         gl.clear([ gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT]);
         windowData[name] = {
             "canvas" : canvas,
