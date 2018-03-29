@@ -52,7 +52,8 @@ public:
         CreateCanvas,
         DestroyCanvas,
         OpenUrl,
-        ChangeTitle
+        ChangeTitle,
+        ChangeCursor
     };
 
     QWebGLWebSocketServer(QObject *parent = nullptr);

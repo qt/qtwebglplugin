@@ -37,6 +37,7 @@ QT_BEGIN_NAMESPACE
 
 class QWebGLWindow;
 class QWebGLScreenPrivate;
+class QWebGLCursor;
 
 class QWebGLScreen : public QPlatformScreen
 {
@@ -56,6 +57,7 @@ public:
     qreal refreshRate() const override;
 
     void setGeometry(int width, int height, const int physicalWidth, const int physicalHeight);
+    QPlatformCursor* cursor() const override;
 
 private:
     friend class QWebGLWindow;
@@ -63,6 +65,7 @@ private:
     Q_DISABLE_COPY(QWebGLScreen)
     Q_DECLARE_PRIVATE(QWebGLScreen)
     QScopedPointer<QWebGLScreenPrivate> d_ptr;
+    QScopedPointer<QWebGLCursor> mCursor;
 };
 
 QT_END_NAMESPACE

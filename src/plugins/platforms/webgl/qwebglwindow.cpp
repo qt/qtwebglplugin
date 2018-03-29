@@ -146,6 +146,8 @@ QSurfaceFormat QWebGLWindow::format() const
 
 QWebGLScreen *QWebGLWindow::screen() const
 {
+
+
     return static_cast<QWebGLScreen *>(QPlatformWindow::screen());
 }
 

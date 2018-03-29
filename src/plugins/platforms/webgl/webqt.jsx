@@ -1106,6 +1106,7 @@ window.onload = function () {
     };
     socket.onmessage = function (event) {
         if (event.data instanceof ArrayBuffer) {
+            console.log(event);
             handleBinaryMessage(event);
             return;
         }

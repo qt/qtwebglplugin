@@ -72,6 +72,7 @@ private:
     Q_DISABLE_COPY(QWebGLIntegration)
     Q_DECLARE_PRIVATE(QWebGLIntegration)
     QScopedPointer<QWebGLIntegrationPrivate> d_ptr;
+
 };
 
 QT_END_NAMESPACE

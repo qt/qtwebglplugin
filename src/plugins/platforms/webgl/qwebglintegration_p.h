@@ -121,10 +121,12 @@ public:
     void handleKeyboard(const ClientData &clientData,
                         const QString &type,
                         const QJsonObject &object);
-
+    
     Qt::KeyboardModifiers convertKeyboardModifiers(const QJsonObject &object);
 
     static QWebGLIntegrationPrivate *instance();
+private Q_SLOTS:
+    void onCursorChanged(QCursor *windowCursor);
 };
 
 QT_END_NAMESPACE
