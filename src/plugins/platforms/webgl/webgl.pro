@@ -12,6 +12,7 @@ qtHaveModule(quick) {
 
 HEADERS += \
     qwebglcontext.h \
+    qwebglcursor.h \
     qwebglfunctioncall.h \
     qwebglhttpserver.h \
     qwebglintegration.h \
@@ -24,6 +25,7 @@ HEADERS += \
 
 SOURCES += \
     qwebglcontext.cpp \
+    qwebglcursor.cpp \
     qwebglfunctioncall.cpp \
     qwebglhttpserver.cpp \
     qwebglintegration.cpp \

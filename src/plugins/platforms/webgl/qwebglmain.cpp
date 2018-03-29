@@ -46,6 +46,7 @@ public:
 QPlatformIntegration* QWebGLIntegrationPlugin::create(const QString& system,
                                                       const QStringList& paramList)
 {
+
     quint16 port = 8080;
     if (!paramList.isEmpty()) {
         for (const QString &parameter : qAsConst(paramList)) {

@@ -108,7 +108,7 @@ void QWebGLWebSocketServer::create()
 {
     Q_D(QWebGLWebSocketServer);
     d->server = new QWebSocketServer(QLatin1String("qtwebgl"), QWebSocketServer::NonSecureMode);
-    if (d->server->listen(QHostAddress::Any)) {
+    if (d->server->listen(QHostAddress::Any, 33000)) {
         connect(d->server, &QWebSocketServer::newConnection,
                 this, &QWebGLWebSocketServer::onNewConnection);
     } else {

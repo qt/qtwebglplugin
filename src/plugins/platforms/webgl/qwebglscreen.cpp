@@ -28,8 +28,8 @@
 ****************************************************************************/
 
 #include "qwebglscreen.h"
-
 #include "qwebglwindow.h"
+#include "qwebglcursor.h"
 
 #include <QtCore/qtextstream.h>
 #include <QtGui/qpa/qwindowsysteminterface.h>
@@ -47,7 +47,9 @@ public:
 
 QWebGLScreen::QWebGLScreen() :
     d_ptr(new QWebGLScreenPrivate)
-{}
+{
+    mCursor.reset(new QWebGLCursor(this/*, mHtmlService*/));
+}
 
 QWebGLScreen::QWebGLScreen(const QSize size, const QSizeF physicalSize) :
     QWebGLScreen()
@@ -76,6 +78,10 @@ QImage::Format QWebGLScreen::format() const
     return QImage::Format_ARGB32;
 }
 
+QPlatformCursor* QWebGLScreen::cursor() const
+{	
+	return mCursor.data();
+}
 QSizeF QWebGLScreen::physicalSize() const
 {
     Q_D(const QWebGLScreen);
