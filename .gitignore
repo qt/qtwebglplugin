@@ -12,3 +12,5 @@ target_wrapper.*
 # QtCreator CMake
 Makefile
 *.so
+.vscode
+mkspecs
