@@ -343,29 +343,9 @@ void QWebGLIntegrationPrivate::clientConnected(QWebSocket *socket,
     clients.list.append(client);
     clients.mutex.unlock();
     q->screenAdded(client.platformScreen, true);
-    //client.platformScreen->cursor().cursorChanged;
-    //connect cursorchangedsignal of cursor to oncursorchangedslot of integration
-    //QWebGCursor cursor = client.platformScreen->cursor
-    QObject::connect(client.platformScreen->cursor(), &QWebGLCursor::cursorChanged, this, &QWebGLIntegrationPrivate::onCursorChanged);
-
     connectNextClient();
 }
 
-void QWebGLIntegrationPrivate::onCursorChanged(QCursor *windowCursor){
-    const QVariantMap values{
-        {"cursor", static_cast<int>(windowCursor->shape())}};
-        
-    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data) {
-    qInfo() << "cursor" << windowCursor->shape();
-    sendMessage(data.socket, QWebGLWebSocketServer::MessageType::ChangeCursor, values);
-
-});
-
-//qInfo << 'oncursor changed' << windowCursor->shape();
-
-qInfo() << "cursor" << windowCursor->shape();
-qInfo() << "cursor int" << static_cast<int>(windowCursor->shape());
-}
 
 void QWebGLIntegrationPrivate::clientDisconnected(QWebSocket *socket)
 {

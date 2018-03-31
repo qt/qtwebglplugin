@@ -10,3 +10,5 @@ target_wrapper.*
 # QtCreator Qml
 *.qmlproject.user *.qmlproject.user.*
 # QtCreator CMake
+Makefile
+*.so

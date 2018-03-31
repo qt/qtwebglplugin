@@ -58,7 +58,6 @@ public:
 
     void setGeometry(int width, int height, const int physicalWidth, const int physicalHeight);
     QPlatformCursor* cursor() const override;
-
 private:
     friend class QWebGLWindow;
 

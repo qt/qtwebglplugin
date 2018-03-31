@@ -30,11 +30,11 @@ QT_BEGIN_NAMESPACE
 
 class QWebGLScreen;
 
-class QWebGLCursor : public QPlatformCursor, public QObject
+class QWebGLCursor : public QPlatformCursor
 {
     Q_OBJECT
 public:
-    QWebGLCursor(QWebGLScreen *screen/*, QObject *htmlService*/);
+    QWebGLCursor();
     
     void changeCursor(QCursor *windowCursor, QWindow *window);
 
