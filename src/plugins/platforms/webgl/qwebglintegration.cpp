@@ -351,6 +351,7 @@ void QWebGLIntegrationPrivate::clientConnected(QWebSocket *socket,
     connectNextClient();
 }
 
+<<<<<<< HEAD
 void QWebGLIntegrationPrivate::onCursorChanged(QCursor *windowCursor){
     const QVariantMap values{
         {"cursor", static_cast<int>(windowCursor->shape())}};
@@ -366,6 +367,8 @@ void QWebGLIntegrationPrivate::onCursorChanged(QCursor *windowCursor){
 qInfo() << "cursor" << windowCursor->shape();
 qInfo() << "cursor int" << static_cast<int>(windowCursor->shape());
 }
+=======
+>>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
 
 void QWebGLIntegrationPrivate::clientDisconnected(QWebSocket *socket)
 {

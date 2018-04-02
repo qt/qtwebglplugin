@@ -48,7 +48,11 @@ public:
 QWebGLScreen::QWebGLScreen() :
     d_ptr(new QWebGLScreenPrivate)
 {
+<<<<<<< HEAD
     mCursor.reset(new QWebGLCursor(this/*, mHtmlService*/));
+=======
+    mCursor.reset(new QWebGLCursor());
+>>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
 }
 
 QWebGLScreen::QWebGLScreen(const QSize size, const QSizeF physicalSize) :
@@ -82,6 +86,11 @@ QPlatformCursor* QWebGLScreen::cursor() const
 {	
 	return mCursor.data();
 }
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
 QSizeF QWebGLScreen::physicalSize() const
 {
     Q_D(const QWebGLScreen);

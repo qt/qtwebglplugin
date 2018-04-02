@@ -24,17 +24,29 @@
 #include "qwebglcursor.h"
 #include "qwebglscreen.h"
 
+<<<<<<< HEAD
 #include <QtCore/QtDebug>
 
 QWebGLCursor::QWebGLCursor(QWebGLScreen *screen/*, QObject *htmlService*/)
     : QPlatformCursor()/*,
       mHtmlService(htmlService)*/
+=======
+#include "qwebglintegration.h"
+#include "qwebglintegration_p.h"
+
+#include <QtGui/private/qguiapplication_p.h>
+#include <QtCore/QtDebug>
+
+QWebGLCursor::QWebGLCursor()
+    : QPlatformCursor()
+>>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
 {
 }
 
 void QWebGLCursor::changeCursor(QCursor *windowCursor, QWindow *window)
 {
 
+<<<<<<< HEAD
     // Q_UNUSED(window);
     // QMetaObject::invokeMethod(mHtmlService, "changeCursor",
     //                           Q_ARG(int, static_cast<int>(windowCursor->shape())));
@@ -44,5 +56,19 @@ void QWebGLCursor::changeCursor(QCursor *windowCursor, QWindow *window)
 
     emit cursorChanged(windowCursor);
     
+=======
+    auto integrationPrivate = QWebGLIntegrationPrivate::instance();
+    QSurface* surface = reinterpret_cast<QSurface*>(window);
+    auto clientData = integrationPrivate->findClientData(surface->surfaceHandle());
+    if (clientData) {
+        const QVariantMap values {
+            { "cursor", static_cast<int>(windowCursor->shape()) }
+        };
+        if (clientData->socket)
+            integrationPrivate->sendMessage(clientData->socket,
+                                            QWebGLWebSocketServer::MessageType::ChangeCursor,
+                                            values);
+    }
+>>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
 }
 

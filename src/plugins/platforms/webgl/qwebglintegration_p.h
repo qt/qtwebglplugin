@@ -38,6 +38,7 @@
 #include <QtCore/qmutex.h>
 #include <QtCore/qwaitcondition.h>
 #include <QtGui/qpa/qplatforminputcontextfactory_p.h>
+#include <QtGui/qpa/qplatformsurface.h>
 
 #if defined(Q_OS_WIN)
 #include <QtFontDatabaseSupport/private/qwindowsfontdatabase_p.h>
@@ -56,7 +57,7 @@ QT_BEGIN_NAMESPACE
 class QWebSocket;
 class QWebGLIntegration;
 
-class QWebGLIntegrationPrivate
+class QWebGLIntegrationPrivate 
 {
     Q_DECLARE_PUBLIC(QWebGLIntegration)
 public:
