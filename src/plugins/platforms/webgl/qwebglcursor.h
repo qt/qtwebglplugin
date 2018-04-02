@@ -40,8 +40,7 @@ public:
 
     Q_SIGNALS: 
     void cursorChanged(QCursor *windowCursor);
-private:
-    QObject *mHtmlService;
+
 };
 
 QT_END_NAMESPACE
