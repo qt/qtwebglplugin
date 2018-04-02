@@ -30,30 +30,17 @@ QT_BEGIN_NAMESPACE
 
 class QWebGLScreen;
 
-<<<<<<< HEAD
-class QWebGLCursor : public QPlatformCursor, public QObject
-{
-    Q_OBJECT
-public:
-    QWebGLCursor(QWebGLScreen *screen/*, QObject *htmlService*/);
-=======
+
 class QWebGLCursor : public QPlatformCursor
 {
-    Q_OBJECT
 public:
     QWebGLCursor();
->>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
-    
+
     void changeCursor(QCursor *windowCursor, QWindow *window);
 
-    Q_SIGNALS: 
-    void cursorChanged(QCursor *windowCursor);
-<<<<<<< HEAD
 
-=======
 private:
-    QObject *mHtmlService;
->>>>>>> 7b9234e90f74a46fd6af89d5ab39aec0d8537b3f
+
 };
 
 QT_END_NAMESPACE
