@@ -46,7 +46,6 @@ void QWebGLCursor::changeCursor(QCursor *windowCursor, QWindow *window)
      auto clientData = integrationPrivate->findClientData(mScreen);
      
      if (clientData) {
-        qInfo() << "yoooooo";
          const QVariantMap values {
             { "cursor", static_cast<int>(windowCursor->shape()) }
         };
