@@ -38,6 +38,7 @@
 #include <QtCore/qmutex.h>
 #include <QtCore/qwaitcondition.h>
 #include <QtGui/qpa/qplatforminputcontextfactory_p.h>
+#include <QtGui/qpa/qplatformsurface.h>
 
 #if defined(Q_OS_WIN)
 #include <QtFontDatabaseSupport/private/qwindowsfontdatabase_p.h>
@@ -56,7 +57,7 @@ QT_BEGIN_NAMESPACE
 class QWebSocket;
 class QWebGLIntegration;
 
-class QWebGLIntegrationPrivate
+class QWebGLIntegrationPrivate 
 {
     Q_DECLARE_PUBLIC(QWebGLIntegration)
 public:
@@ -97,6 +98,7 @@ public:
 
     ClientData *findClientData(const QWebSocket *socket);
     ClientData *findClientData(const QPlatformSurface *surface);
+    ClientData *findClientData(const QWebGLScreen *screen);
     QWebGLWindow *findWindow(const ClientData &clientData, WId winId);
 
     void clientConnected(QWebSocket *socket,
@@ -121,10 +123,12 @@ public:
     void handleKeyboard(const ClientData &clientData,
                         const QString &type,
                         const QJsonObject &object);
-
+    
     Qt::KeyboardModifiers convertKeyboardModifiers(const QJsonObject &object);
 
     static QWebGLIntegrationPrivate *instance();
+private Q_SLOTS:
+    void onCursorChanged(QCursor *windowCursor);
 };
 
 QT_END_NAMESPACE

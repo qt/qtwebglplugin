@@ -32,7 +32,7 @@
 
 #include "qwebglwindow.h"
 #include "qwebglcontext.h"
-#include "qwebglcontext.h"
+#include "qwebglcursor.h"
 #include "qwebglhttpserver.h"
 #include "qwebglwebsocketserver.h"
 #include "qwebglplatformservices.h"
@@ -70,8 +70,7 @@ QWebGLIntegrationPrivate *QWebGLIntegrationPrivate::instance()
     return static_cast<QWebGLIntegration *>(platformIntegration)->d_ptr.data();
 }
 
-QWebGLIntegration::QWebGLIntegration(quint16 port) :
-    d_ptr(new QWebGLIntegrationPrivate)
+QWebGLIntegration::QWebGLIntegration(quint16 port) : d_ptr(new QWebGLIntegrationPrivate)
 {
     Q_D(QWebGLIntegration);
     d->q_ptr = this;
@@ -115,7 +114,8 @@ void QWebGLIntegration::initialize()
     d->webSocketServer = new QWebGLWebSocketServer;
     d->httpServer = new QWebGLHttpServer(d->webSocketServer, this);
     bool ok = d->httpServer->listen(QHostAddress::Any, d->httpPort);
-    if (!ok) {
+    if (!ok)
+    {
         qFatal("QWebGLIntegration::initialize: Failed to initialize: %s",
                qPrintable(d->httpServer->errorString()));
     }
@@ -196,7 +196,8 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
     qCDebug(lcWebGL, "Creating platform window for: %p", window);
 
 #if defined(QT_QUICK_LIB)
-    if (window->inherits("QQuickWindow")) {
+    if (window->inherits("QQuickWindow"))
+    {
         auto quickWindow = (QQuickWindow *)window;
         quickWindow->setPersistentSceneGraph(false);
         quickWindow->setPersistentOpenGLContext(false);
@@ -204,8 +205,7 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
 #endif
 
     d->windows.append(window);
-    QObject::connect(window, &QWindow::destroyed, [=] ()
-    {
+    QObject::connect(window, &QWindow::destroyed, [=]() {
         d->windows.removeAll(window);
     });
 
@@ -217,7 +217,8 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
     {
         QMutexLocker locker(&d->clients.mutex);
 
-        if (d->clients.list.isEmpty()) {
+        if (d->clients.list.isEmpty())
+        {
             QMetaObject::invokeMethod(window, "close", Qt::QueuedConnection);
             return new QWebGLWindow(window);
         }
@@ -232,19 +233,17 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
         winId = platformWindow->winId();
     }
 
-    const QVariantMap values {
-        { "x", platformWindow->geometry().x() },
-        { "y", platformWindow->geometry().y() },
-        { "width", platformWindow->geometry().width() },
-        { "height", platformWindow->geometry().height() },
-        { "winId", winId },
-        { "title", qApp->applicationDisplayName() }
-    };
+    const QVariantMap values{
+        {"x", platformWindow->geometry().x()},
+        {"y", platformWindow->geometry().y()},
+        {"width", platformWindow->geometry().width()},
+        {"height", platformWindow->geometry().height()},
+        {"winId", winId},
+        {"title", qApp->applicationDisplayName()}};
     d->sendMessage(socket, QWebGLWebSocketServer::MessageType::CreateCanvas, values);
 
-    QObject::connect(window, &QWindow::windowTitleChanged, [=](const QString &title)
-    {
-        const QVariantMap values{{ "title", title }, { "winId", winId }};
+    QObject::connect(window, &QWindow::windowTitleChanged, [=](const QString &title) {
+        const QVariantMap values{{"title", title}, {"winId", winId}};
         d->sendMessage(socket, QWebGLWebSocketServer::MessageType::ChangeTitle, values);
     });
     qCDebug(lcWebGL, "Created platform window %p for: %p", platformWindow, window);
@@ -265,7 +264,8 @@ QPlatformOpenGLContext *QWebGLIntegration::createPlatformOpenGLContext(QOpenGLCo
 
 bool QWebGLIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
-    switch (cap) {
+    switch (cap)
+    {
     case OpenGL:
     case ThreadedOpenGL:
     case ThreadedPixmaps:
@@ -285,32 +285,40 @@ void QWebGLIntegration::openUrl(const QUrl &url)
     Q_D(QWebGLIntegration);
     qCDebug(lcWebGL, "%s", qPrintable(url.toString()));
     QMutexLocker locker(&d->clients.mutex);
-    for (auto &clientData : d->clients.list) {
-        const QVariantMap values {
-            { "url", url }
-        };
+    for (auto &clientData : d->clients.list)
+    {
+        const QVariantMap values{
+            {"url", url}};
         d->sendMessage(clientData.socket, QWebGLWebSocketServer::MessageType::OpenUrl, values);
     }
 }
 
 QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
-        const QWebSocket *socket)
+    const QWebSocket *socket)
 {
     QMutexLocker locker(&clients.mutex);
-    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data)
-    {
+    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data) {
         return data.socket == socket;
+    });
+
+    return it != clients.list.end() ? &*it : nullptr;
+}
+QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
+    const QWebGLScreen *screen)
+{
+    QMutexLocker locker(&clients.mutex);
+    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data) {
+        return data.platformScreen == screen;
     });
 
     return it != clients.list.end() ? &*it : nullptr;
 }
 
 QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
-        const QPlatformSurface *surface)
+    const QPlatformSurface *surface)
 {
     QMutexLocker locker(&clients.mutex);
-    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data)
-    {
+    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data) {
         if (!data.platformWindows.isEmpty() && data.platformWindows.last()->surface())
             return surface == data.platformWindows.last()->surface()->surfaceHandle();
         return false;
@@ -321,8 +329,7 @@ QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
 QWebGLWindow *QWebGLIntegrationPrivate::findWindow(const ClientData &clientData, WId winId)
 {
     auto &windows = clientData.platformWindows;
-    auto it = std::find_if(windows.begin(), windows.end(), [winId](QWebGLWindow *window)
-    {
+    auto it = std::find_if(windows.begin(), windows.end(), [winId](QWebGLWindow *window) {
         return window->winId() == winId;
     });
     Q_ASSERT(it != windows.end());
@@ -346,21 +353,24 @@ void QWebGLIntegrationPrivate::clientConnected(QWebSocket *socket,
     clients.list.append(client);
     clients.mutex.unlock();
     q->screenAdded(client.platformScreen, true);
+
     connectNextClient();
 }
+
 
 void QWebGLIntegrationPrivate::clientDisconnected(QWebSocket *socket)
 {
     qCDebug(lcWebGL, "%p", socket);
-    const auto predicate = [=](const QWebGLIntegrationPrivate::ClientData &item)
-    {
+    const auto predicate = [=](const QWebGLIntegrationPrivate::ClientData &item) {
         return socket == item.socket;
     };
 
     clients.mutex.lock();
     auto it = std::find_if(clients.list.begin(), clients.list.end(), predicate);
-    if (it != clients.list.end()) {
-        for (auto platformWindow : it->platformWindows) {
+    if (it != clients.list.end())
+    {
+        for (auto platformWindow : it->platformWindows)
+        {
             auto window = platformWindow->window();
             QTimer::singleShot(0, window, &QWindow::close);
         }
@@ -373,13 +383,15 @@ void QWebGLIntegrationPrivate::clientDisconnected(QWebSocket *socket)
 void QWebGLIntegrationPrivate::connectNextClient()
 {
     static QMutex connecting;
-    if (connecting.tryLock()) {
+    if (connecting.tryLock())
+    {
         QTimer::singleShot(1000, [=]() {
             clients.mutex.lock();
-            if (!clients.list.isEmpty()) {
+            if (!clients.list.isEmpty())
+            {
                 const auto clientData = clients.list.first();
                 qCDebug(lcWebGL, "Connecting first client in the queue (%p)",
-                       clientData.socket);
+                        clientData.socket);
                 for (auto window : windows)
                     QMetaObject::invokeMethod(window, "showFullScreen", Qt::QueuedConnection);
             }
@@ -394,7 +406,7 @@ void QWebGLIntegrationPrivate::sendMessage(QWebSocket *socket,
                                            const QVariantMap &values) const
 {
     const auto ok = QMetaObject::invokeMethod(webSocketServer, "sendMessage",
-                                              Q_ARG(QWebSocket*, socket),
+                                              Q_ARG(QWebSocket *, socket),
                                               Q_ARG(QWebGLWebSocketServer::MessageType, type),
                                               Q_ARG(QVariantMap, values));
 #if defined(QT_DEBUG)
@@ -406,6 +418,7 @@ void QWebGLIntegrationPrivate::sendMessage(QWebSocket *socket,
 
 void QWebGLIntegrationPrivate::onTextMessageReceived(QWebSocket *socket, const QString &message)
 {
+
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(message.toUtf8(), &parseError);
     Q_ASSERT(parseError.error == QJsonParseError::NoError);
@@ -419,7 +432,7 @@ void QWebGLIntegrationPrivate::onTextMessageReceived(QWebSocket *socket, const Q
 
     if (type == QStringLiteral("connect"))
         clientConnected(socket, object["width"].toInt(), object["height"].toInt(),
-                          object["physicalWidth"].toDouble(), object["physicalHeight"].toDouble());
+                        object["physicalWidth"].toDouble(), object["physicalHeight"].toDouble());
     else if (!clientData || clientData->platformWindows.isEmpty())
         qCWarning(lcWebGL, "Message received before connect %s", qPrintable(message));
     else if (type == QStringLiteral("default_context_parameters"))
@@ -525,12 +538,15 @@ void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const Q
     auto window = findWindow(clientData, winId)->window();
     const auto time = object.value("time").toDouble();
     const auto eventType = object.value("event").toString();
-    if (eventType == QStringLiteral("touchcancel")) {
+    if (eventType == QStringLiteral("touchcancel"))
+    {
         QWindowSystemInterface::handleTouchCancelEvent(window,
                                                        time,
                                                        touchDevice,
                                                        Qt::NoModifier);
-    } else {
+    }
+    else
+    {
         QList<QWindowSystemInterface::TouchPoint> points;
         auto touchToPoint = [](const QJsonValue &touch) -> QWindowSystemInterface::TouchPoint {
             QWindowSystemInterface::TouchPoint point; // support more than one
@@ -548,25 +564,32 @@ void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const Q
             point.area.setHeight(radiousY * 2);
             point.normalPosition.setX(touch.toObject().value("normalPositionX").toDouble());
             point.normalPosition.setY(touch.toObject().value("normalPositionY").toDouble());
-            point.rawPositions = {{ clientX, clientY }};
+            point.rawPositions = {{clientX, clientY}};
             return point;
         };
 
-        for (const auto &touch : object.value("changedTouches").toArray()) {
+        for (const auto &touch : object.value("changedTouches").toArray())
+        {
             auto point = touchToPoint(touch);
-            if (eventType == QStringLiteral("touchstart")) {
+            if (eventType == QStringLiteral("touchstart"))
+            {
                 point.state = Qt::TouchPointPressed;
-            } else if (eventType == QStringLiteral("touchend")) {
+            }
+            else if (eventType == QStringLiteral("touchend"))
+            {
                 qCDebug(lcWebGL, ) << "end" << object;
                 point.state = Qt::TouchPointReleased;
-            } else {
+            }
+            else
+            {
                 Q_ASSERT(eventType == QStringLiteral("touchmove"));
                 point.state = Qt::TouchPointMoved;
             }
             points.append(point);
         }
 
-        for (const auto &touch : object.value("stationaryTouches").toArray()) {
+        for (const auto &touch : object.value("stationaryTouches").toArray())
+        {
             auto point = touchToPoint(touch);
             point.state = Qt::TouchPointStationary;
             points.append(point);
@@ -584,42 +607,41 @@ void QWebGLIntegrationPrivate::handleKeyboard(const ClientData &clientData,
                                               const QString &type,
                                               const QJsonObject &object)
 {
-    const QHash<QString, Qt::Key> keyMap {
-        { "Alt", Qt::Key_Alt },
-        { "ArrowDown", Qt::Key_Down },
-        { "ArrowLeft", Qt::Key_Left },
-        { "ArrowRight", Qt::Key_Right },
-        { "ArrowUp", Qt::Key_Up },
-        { "Backspace", Qt::Key_Backspace },
-        { "Control", Qt::Key_Control },
-        { "Delete", Qt::Key_Delete },
-        { "End", Qt::Key_End },
-        { "Enter", Qt::Key_Enter },
-        { "F1", Qt::Key_F1 },
-        { "F2", Qt::Key_F2 },
-        { "F3", Qt::Key_F3 },
-        { "F4", Qt::Key_F4 },
-        { "F5", Qt::Key_F5 },
-        { "F6", Qt::Key_F6 },
-        { "F7", Qt::Key_F7 },
-        { "F8", Qt::Key_F8 },
-        { "F9", Qt::Key_F9 },
-        { "F10", Qt::Key_F10 },
-        { "F11", Qt::Key_F11 },
-        { "F12", Qt::Key_F12 },
-        { "Escape", Qt::Key_Escape },
-        { "Home", Qt::Key_Home },
-        { "Insert", Qt::Key_Insert },
-        { "Meta", Qt::Key_Meta },
-        { "PageDown", Qt::Key_PageDown },
-        { "PageUp", Qt::Key_PageUp },
-        { "Shift", Qt::Key_Shift },
-        { "Space", Qt::Key_Space },
-        { "AltGraph", Qt::Key_AltGr },
-        { "Tab", Qt::Key_Tab },
-        { "Unidentified", Qt::Key_F },
-        { "OS", Qt::Key_Super_L }
-    };
+    const QHash<QString, Qt::Key> keyMap{
+        {"Alt", Qt::Key_Alt},
+        {"ArrowDown", Qt::Key_Down},
+        {"ArrowLeft", Qt::Key_Left},
+        {"ArrowRight", Qt::Key_Right},
+        {"ArrowUp", Qt::Key_Up},
+        {"Backspace", Qt::Key_Backspace},
+        {"Control", Qt::Key_Control},
+        {"Delete", Qt::Key_Delete},
+        {"End", Qt::Key_End},
+        {"Enter", Qt::Key_Enter},
+        {"F1", Qt::Key_F1},
+        {"F2", Qt::Key_F2},
+        {"F3", Qt::Key_F3},
+        {"F4", Qt::Key_F4},
+        {"F5", Qt::Key_F5},
+        {"F6", Qt::Key_F6},
+        {"F7", Qt::Key_F7},
+        {"F8", Qt::Key_F8},
+        {"F9", Qt::Key_F9},
+        {"F10", Qt::Key_F10},
+        {"F11", Qt::Key_F11},
+        {"F12", Qt::Key_F12},
+        {"Escape", Qt::Key_Escape},
+        {"Home", Qt::Key_Home},
+        {"Insert", Qt::Key_Insert},
+        {"Meta", Qt::Key_Meta},
+        {"PageDown", Qt::Key_PageDown},
+        {"PageUp", Qt::Key_PageUp},
+        {"Shift", Qt::Key_Shift},
+        {"Space", Qt::Key_Space},
+        {"AltGraph", Qt::Key_AltGr},
+        {"Tab", Qt::Key_Tab},
+        {"Unidentified", Qt::Key_F},
+        {"OS", Qt::Key_Super_L}};
     const auto timestamp = static_cast<ulong>(object.value("time").toDouble(-1));
     const auto keyName = object.value("key").toString();
     const auto specialKey = keyMap.find(keyName);
@@ -632,7 +654,8 @@ void QWebGLIntegrationPrivate::handleKeyboard(const ClientData &clientData,
         return;
     QString string(object.value("key").toString());
     int key = object.value("which").toInt(0);
-    if (specialKey != keyMap.end()) {
+    if (specialKey != keyMap.end())
+    {
         key = *specialKey;
         string.clear();
 

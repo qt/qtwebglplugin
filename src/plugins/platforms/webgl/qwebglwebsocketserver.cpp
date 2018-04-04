@@ -108,7 +108,7 @@ void QWebGLWebSocketServer::create()
 {
     Q_D(QWebGLWebSocketServer);
     d->server = new QWebSocketServer(QLatin1String("qtwebgl"), QWebSocketServer::NonSecureMode);
-    if (d->server->listen(QHostAddress::Any)) {
+    if (d->server->listen(QHostAddress::Any, 33000)) {
         connect(d->server, &QWebSocketServer::newConnection,
                 this, &QWebGLWebSocketServer::onNewConnection);
     } else {
@@ -217,6 +217,10 @@ void QWebGLWebSocketServer::sendMessage(QWebSocket *socket,
     case MessageType::ChangeTitle:
         qCDebug(lc) << "Sending change_title to " << socket << values;
         typeString = QStringLiteral("changle_title");
+        break;
+    case MessageType::ChangeCursor:
+        qCDebug(lc) << "Sending change_title to " << socket << values;
+        typeString = QStringLiteral("change_cursor");
         break;
     }
     QJsonDocument document;

@@ -42,7 +42,6 @@ public:
     QWebGLPlatformServices() = default;
 
     virtual bool openUrl(const QUrl &url) override;
-
 private:
     Q_DISABLE_COPY(QWebGLPlatformServices)
 };
