@@ -17,3 +17,5 @@ mkspecs
 *.moc
 *.obj
 *.rcc
+*.qmake.stash
+*.cmake
