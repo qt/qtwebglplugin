@@ -49,7 +49,7 @@ QWebGLScreen::QWebGLScreen() :
     d_ptr(new QWebGLScreenPrivate)
 {
 
-    mCursor.reset(new QWebGLCursor());
+    mCursor.reset(new QWebGLCursor(this));
 
 }
 

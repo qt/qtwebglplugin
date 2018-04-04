@@ -98,6 +98,7 @@ public:
 
     ClientData *findClientData(const QWebSocket *socket);
     ClientData *findClientData(const QPlatformSurface *surface);
+    ClientData *findClientData(const QWebGLScreen *screen);
     QWebGLWindow *findWindow(const ClientData &clientData, WId winId);
 
     void clientConnected(QWebSocket *socket,

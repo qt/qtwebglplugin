@@ -303,6 +303,16 @@ QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
 
     return it != clients.list.end() ? &*it : nullptr;
 }
+QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
+    const QWebGLScreen *screen)
+{
+    QMutexLocker locker(&clients.mutex);
+    auto it = std::find_if(clients.list.begin(), clients.list.end(), [=](const ClientData &data) {
+        return data.platformScreen == screen;
+    });
+
+    return it != clients.list.end() ? &*it : nullptr;
+}
 
 QWebGLIntegrationPrivate::ClientData *QWebGLIntegrationPrivate::findClientData(
     const QPlatformSurface *surface)
@@ -408,6 +418,7 @@ void QWebGLIntegrationPrivate::sendMessage(QWebSocket *socket,
 
 void QWebGLIntegrationPrivate::onTextMessageReceived(QWebSocket *socket, const QString &message)
 {
+
     QJsonParseError parseError;
     const auto document = QJsonDocument::fromJson(message.toUtf8(), &parseError);
     Q_ASSERT(parseError.error == QJsonParseError::NoError);

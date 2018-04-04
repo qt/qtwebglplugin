@@ -31,8 +31,8 @@
 #include <QtGui/private/qguiapplication_p.h>
 #include <QtCore/QtDebug>
 
-QWebGLCursor::QWebGLCursor()
-    : QPlatformCursor()
+QWebGLCursor::QWebGLCursor(QWebGLScreen* screen)
+    : QPlatformCursor(), mScreen(screen)
 
 {
 }
@@ -41,11 +41,13 @@ void QWebGLCursor::changeCursor(QCursor *windowCursor, QWindow *window)
 {
 
 
-    auto integrationPrivate = QWebGLIntegrationPrivate::instance();
-    QSurface* surface = reinterpret_cast<QSurface*>(window);
-    auto clientData = integrationPrivate->findClientData(surface->surfaceHandle());
-    if (clientData) {
-        const QVariantMap values {
+     auto integrationPrivate = QWebGLIntegrationPrivate::instance();
+     QSurface* surface = reinterpret_cast<QSurface*>(window);
+     auto clientData = integrationPrivate->findClientData(mScreen);
+     
+     if (clientData) {
+        qInfo() << "yoooooo";
+         const QVariantMap values {
             { "cursor", static_cast<int>(windowCursor->shape()) }
         };
         if (clientData->socket)

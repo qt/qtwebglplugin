@@ -25,6 +25,7 @@
 #define QWEBGLCURSOR_h
 
 #include <QtGui/qpa/qplatformcursor.h>
+#include "qwebglscreen.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -34,13 +35,13 @@ class QWebGLScreen;
 class QWebGLCursor : public QPlatformCursor
 {
 public:
-    QWebGLCursor();
+    QWebGLCursor(QWebGLScreen* screen);
 
     void changeCursor(QCursor *windowCursor, QWindow *window);
 
 
 private:
-
+ QWebGLScreen* mScreen;
 };
 
 QT_END_NAMESPACE
