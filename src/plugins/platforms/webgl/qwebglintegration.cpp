@@ -103,6 +103,11 @@ QWebGLIntegration *QWebGLIntegration::instance()
 void QWebGLIntegration::initialize()
 {
     Q_D(QWebGLIntegration);
+
+#if defined(QT_QUICK_LIB)
+    qputenv("QSG_RENDER_LOOP", "threaded"); // Force threaded QSG_RENDER_LOOP
+#endif
+
     d->inputContext = QPlatformInputContextFactory::create();
     d->screen = new QWebGLScreen;
     screenAdded(d->screen, true);
@@ -110,8 +115,10 @@ void QWebGLIntegration::initialize()
     d->webSocketServer = new QWebGLWebSocketServer;
     d->httpServer = new QWebGLHttpServer(d->webSocketServer, this);
     bool ok = d->httpServer->listen(QHostAddress::Any, d->httpPort);
-    if (!ok)
-        qFatal("QWebGLIntegration::initialize: Failed to initialize");
+    if (!ok) {
+        qFatal("QWebGLIntegration::initialize: Failed to initialize: %s",
+               qPrintable(d->httpServer->errorString()));
+    }
     d->webSocketServerThread = new QThread(this);
     d->webSocketServerThread->setObjectName("WebSocketServer");
     d->webSocketServer->moveToThread(d->webSocketServerThread);
@@ -206,7 +213,7 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
 
     QWebGLWindow *platformWindow = nullptr;
     QWebSocket *socket = nullptr;
-    WId winId = -1;
+    auto winId = WId(-1);
     {
         QMutexLocker locker(&d->clients.mutex);
 
@@ -486,6 +493,8 @@ void QWebGLIntegrationPrivate::handleMouse(const ClientData &clientData, const Q
                                              localPos,
                                              globalPos,
                                              Qt::MouseButtons(buttons),
+                                             Qt::NoButton,
+                                             QEvent::None,
                                              Qt::NoModifier,
                                              Qt::MouseEventNotSynthesized);
 }
@@ -503,12 +512,15 @@ void QWebGLIntegrationPrivate::handleWheel(const ClientData &clientData, const Q
     const int deltaX = -object.value("deltaX").toInt(0);
     const int deltaY = -object.value("deltaY").toInt(0);
     auto orientation = deltaY != 0 ? Qt::Vertical : Qt::Horizontal;
+
+    QPoint point = (orientation == Qt::Vertical) ? QPoint(0, deltaY) : QPoint(deltaX, 0);
     QWindowSystemInterface::handleWheelEvent(platformWindow->window(),
                                              time,
                                              localPos,
                                              globalPos,
-                                             orientation == Qt::Vertical ? deltaY : deltaX,
-                                             orientation);
+                                             QPoint(),
+                                             point,
+                                             Qt::NoModifier);
 }
 
 void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const QJsonObject &object)
