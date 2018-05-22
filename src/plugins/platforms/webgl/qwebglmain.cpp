@@ -56,7 +56,7 @@ QPlatformIntegration* QWebGLIntegrationPlugin::create(const QString& system,
                     return nullptr;
                 }
                 bool ok;
-                port = parts.last().toUInt(&ok);
+                port = parts.last().toUShort(&ok);
                 if (!ok) {
                     qCCritical(lcWebGL, "QWebGLIntegrationPlugin::create: Invalid port number");
                     return nullptr;
