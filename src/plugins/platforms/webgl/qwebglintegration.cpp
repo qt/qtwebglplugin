@@ -541,16 +541,16 @@ void QWebGLIntegrationPrivate::handleTouch(const ClientData &clientData, const Q
             QWindowSystemInterface::TouchPoint point; // support more than one
             const auto pageX = touch.toObject().value("pageX").toDouble();
             const auto pageY = touch.toObject().value("pageY").toDouble();
-            const auto radiousX = touch.toObject().value("radiousX").toDouble();
-            const auto radiousY = touch.toObject().value("radiousY").toDouble();
+            const auto radiusX = touch.toObject().value("radiusX").toDouble();
+            const auto radiusY = touch.toObject().value("radiusY").toDouble();
             const auto clientX = touch.toObject().value("clientX").toDouble();
             const auto clientY = touch.toObject().value("clientY").toDouble();
             point.id = touch.toObject().value("identifier").toInt(0);
             point.pressure = touch.toObject().value("force").toDouble(1.);
-            point.area.setX(pageX - radiousX);
-            point.area.setY(pageY - radiousY);
-            point.area.setWidth(radiousX * 2);
-            point.area.setHeight(radiousY * 2);
+            point.area.setX(pageX - radiusX);
+            point.area.setY(pageY - radiusY);
+            point.area.setWidth(radiusX * 2);
+            point.area.setHeight(radiusY * 2);
             point.normalPosition.setX(touch.toObject().value("normalPositionX").toDouble());
             point.normalPosition.setY(touch.toObject().value("normalPositionY").toDouble());
             point.rawPositions = {{ clientX, clientY }};
