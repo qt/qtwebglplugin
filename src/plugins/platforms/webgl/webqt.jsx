@@ -7,7 +7,7 @@ function getBrowserSize() {
                       document.documentElement.clientHeight ||
                       document.body.clientHeight ||
                       document.body.offsetHeight;
-    return { "width": actualWidth, "height" : actualHeight };
+    return { "width": actualWidth, "height": actualHeight };
 }
 
 function getContext(canvas) {
@@ -27,8 +27,8 @@ function physicalSizeRatio() {
     var physicalHeight = document.defaultView.getComputedStyle(div, null).getPropertyValue('height');
     body.removeChild(div);
     return {
-        'width' : parseFloat(physicalWidth),
-        'height' : parseFloat(physicalHeight)
+        "width": parseFloat(physicalWidth),
+        "height": parseFloat(physicalHeight)
     };
 }
 
@@ -57,7 +57,7 @@ window.onload = function () {
         textDecoder = new TextDecoder("utf8");
     } else {
     textDecoder = {
-            "decode" : function (buffer)
+            "decode": function (buffer)
             {
                 var string = String.fromCharCode.apply(String, buffer);
                 return string;
@@ -74,10 +74,10 @@ window.onload = function () {
         var height = size.height;
         var physicalSize = physicalSizeRatio();
 
-        var object = { "type" : "connect",
-            "width" : width, "height" : height,
-            "physicalWidth" : width / physicalSize.width,
-            "physicalHeight" : height / physicalSize.height
+        var object = { "type": "connect",
+            "width": width, "height": height,
+            "physicalWidth": width / physicalSize.width,
+            "physicalHeight": height / physicalSize.height
         };
         sendObject(object);
         initialLoadingCanvas = createLoadingCanvas('loadingCanvas', 0, 0, width, height);
@@ -210,9 +210,9 @@ window.onload = function () {
         var sendMouseEvent = function (buttons, layerX, layerY, clientX, clientY, name) {
             var object = { "type": "mouse",
                 "buttons": buttons,
-                "layerX": layerX, "layerY": layerY, "clientX" : clientX, "clientY" : clientY,
-                "time" : new Date().getTime(),
-                "name" : name
+                "layerX": layerX, "layerY": layerY, "clientX": clientX, "clientY": clientY,
+                "time": new Date().getTime(),
+                "name": name
             };
             sendObject(object);
         };
@@ -254,12 +254,12 @@ window.onload = function () {
             else if (event.detail)
                 deltaY = event.detail * 40;
             if (deltaY) {
-                var object = { "type" : "wheel",
-                    "layerX" : event.layerX, "layerY" : event.layerY,
-                    "clientX" : event.clientX, "clientY" : event.clientY,
-                    "deltaX" : event.deltaX, "deltaY" : deltaY, "deltaZ" : event.deltaZ,
-                    "time" : new Date().getTime(),
-                    "name" : name
+                var object = { "type": "wheel",
+                    "layerX": event.layerX, "layerY": event.layerY,
+                    "clientX": event.clientX, "clientY": event.clientY,
+                    "deltaX": event.deltaX, "deltaY": deltaY, "deltaZ": event.deltaZ,
+                    "time": new Date().getTime(),
+                    "name": name
                 };
                 sendObject(object);
             }
@@ -275,28 +275,28 @@ window.onload = function () {
 
         function handleTouch(event) {
             var object = {
-                "type" : "touch",
-                "name" : name,
-                "time" : new Date().getTime(),
-                "event" : event.type,
-                "changedTouches" : [],
-                "stationaryTouches" : [],
+                "type": "touch",
+                "name": name,
+                "time": new Date().getTime(),
+                "event": event.type,
+                "changedTouches": [],
+                "stationaryTouches": [],
             };
             var addTouch = function(changedTouch, isChanged) {
                 var touch = {
-                    "clientX" : changedTouch.clientX,
-                    "clientY" : changedTouch.clientY,
-                    "force" : changedTouch.force,
-                    "identifier" : changedTouch.identifier,
-                    "pageX" : changedTouch.pageX,
-                    "pageY" : changedTouch.pageY,
-                    "radiusX" : changedTouch.radiusX,
-                    "radiusY" : changedTouch.radiusY,
-                    "rotatingAngle" : changedTouch.rotatingAngle,
-                    "screenX" : changedTouch.screenX,
-                    "screenY" : changedTouch.screenY,
-                    "normalPositionX" : changedTouch.screenX / screen.width,
-                    "normalPositionY" : changedTouch.screenY / screen.height,
+                    "clientX": changedTouch.clientX,
+                    "clientY": changedTouch.clientY,
+                    "force": changedTouch.force,
+                    "identifier": changedTouch.identifier,
+                    "pageX": changedTouch.pageX,
+                    "pageY": changedTouch.pageY,
+                    "radiusX": changedTouch.radiusX,
+                    "radiusY": changedTouch.radiusY,
+                    "rotatingAngle": changedTouch.rotatingAngle,
+                    "screenX": changedTouch.screenX,
+                    "screenY": changedTouch.screenY,
+                    "normalPositionX": changedTouch.screenX / screen.width,
+                    "normalPositionY": changedTouch.screenY / screen.height,
                 };
                 if (isChanged)
                     object.changedTouches.push(touch);
@@ -339,14 +339,14 @@ window.onload = function () {
         /* jslint bitwise: true */
         gl.clear([ gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT]);
         windowData[name] = {
-            "canvas" : canvas,
-            "gl" : gl,
-            "loadingCanvas" : createLoadingCanvas(name, x, y, width, height)
+            "canvas": canvas,
+            "gl": gl,
+            "loadingCanvas": createLoadingCanvas(name, x, y, width, height)
         };
 
-        var defaultValuesObject = { 'type' : 'default_context_parameters', 'name' : name,
-            '7939' : "GL_OES_element_index_uint GL_OES_standard_derivatives " + // GL_EXTENSIONS
-                     "GL_OES_depth_texture GL_OES_packed_depth_stencil" };
+        var defaultValuesObject = { "type": "default_context_parameters", "name": name,
+            "7939": "GL_OES_element_index_uint GL_OES_standard_derivatives " + // GL_EXTENSIONS
+                    "GL_OES_depth_texture GL_OES_packed_depth_stencil" };
         [
             gl.BLEND,
             gl.DEPTH_TEST,
@@ -788,13 +788,13 @@ window.onload = function () {
             gl._bindBuffer(gl.ARRAY_BUFFER, d.drawArrayBuf);
             for (var i = 4; i < arguments.length; i += 6) {
                 var subData = {
-                    "index" : arguments[i + 0],
-                    "size" : arguments[i + 1],
-                    "type" : arguments[i + 2],
-                    "normalized" : arguments[i + 3],
-                    "stride" : arguments[i + 4],
-                    "offset" : 0,
-                    "data" : arguments[i + 5],
+                    "index": arguments[i + 0],
+                    "size": arguments[i + 1],
+                    "type": arguments[i + 2],
+                    "normalized": arguments[i + 3],
+                    "stride": arguments[i + 4],
+                    "offset": 0,
+                    "data": arguments[i + 5],
                 };
                 subDataParts.push(subData);
                 bufferSize += subData.data.length;
@@ -820,37 +820,37 @@ window.onload = function () {
     };
 
     var commandsNeedingResponse = {
-        "swapBuffers" : undefined,
-        "checkFramebufferStatus" : undefined,
-        "createProgram" : undefined,
-        "createShader" : undefined,
-        "genBuffers" : undefined,
-        "genFramebuffers" : undefined,
-        "genRenderbuffers" : undefined,
-        "genTextures" : undefined,
-        "getAttachedShaders" : undefined,
-        "getAttribLocation" : undefined,
-        "getBooleanv" : undefined,
-        "getError" : undefined,
-        "getFramebufferAttachmentParameteriv" : undefined,
-        "getIntegerv" : undefined,
-        "getParameter" : undefined,
-        "getProgramInfoLog" : undefined,
-        "getProgramiv" : undefined,
-        "getRenderbufferParameteriv" : undefined,
-        "getShaderiv" : undefined,
-        "getShaderPrecisionFormat" : undefined,
-        "getString" : undefined,
-        "getTexParameterfv" : undefined,
-        "getTexParameteriv" : undefined,
-        "getUniformfv" : undefined,
-        "getUniformLocation" : undefined,
-        "getUniformiv" : undefined,
-        "getVertexAttribfv" : undefined,
-        "getVertexAttribiv" : undefined,
-        "getShaderSource" : undefined,
-        "getShaderInfoLog" : undefined,
-        "isRenderbuffer" : undefined
+        "swapBuffers": undefined,
+        "checkFramebufferStatus": undefined,
+        "createProgram": undefined,
+        "createShader": undefined,
+        "genBuffers": undefined,
+        "genFramebuffers": undefined,
+        "genRenderbuffers": undefined,
+        "genTextures": undefined,
+        "getAttachedShaders": undefined,
+        "getAttribLocation": undefined,
+        "getBooleanv": undefined,
+        "getError": undefined,
+        "getFramebufferAttachmentParameteriv": undefined,
+        "getIntegerv": undefined,
+        "getParameter": undefined,
+        "getProgramInfoLog": undefined,
+        "getProgramiv": undefined,
+        "getRenderbufferParameteriv": undefined,
+        "getShaderiv": undefined,
+        "getShaderPrecisionFormat": undefined,
+        "getString": undefined,
+        "getTexParameterfv": undefined,
+        "getTexParameteriv": undefined,
+        "getUniformfv": undefined,
+        "getUniformLocation": undefined,
+        "getUniformiv": undefined,
+        "getVertexAttribfv": undefined,
+        "getVertexAttribiv": undefined,
+        "getShaderSource": undefined,
+        "getShaderInfoLog": undefined,
+        "isRenderbuffer": undefined
     };
 
     var ensureContextData = function (context) {
@@ -922,7 +922,7 @@ window.onload = function () {
     var handleBinaryMessage = function (event) {
         var view = new DataView(event.data);
         var offset = 0;
-        var obj = { "parameters" : [] };
+        var obj = { "parameters": [] };
         obj.function = supportedFunctions[view.getUint8(offset)];
         offset += 1;
         if (obj.function in commandsNeedingResponse) {
@@ -1066,10 +1066,10 @@ window.onload = function () {
                 var physicalSize = physicalSizeRatio();
                 if (DEBUG)
                     console.log("Resizing canvas to " + width + " x " + height);
-                sendObject({ "type" : "canvas_resize",
-                    "width" : width, "height" : height,
-                    "physicalWidth" : width / physicalSize.width,
-                    "physicalHeight" : height / physicalSize.height
+                sendObject({ "type": "canvas_resize",
+                    "width": width, "height": height,
+                    "physicalWidth": width / physicalSize.width,
+                    "physicalHeight": height / physicalSize.height
                 });
             };
             window.addEventListener("resize",(function(){
@@ -1136,19 +1136,19 @@ window.onload = function () {
 
     var setupInput = function () {
         var keyHandler = function (event) {
-            var object = { "type" : event.type,
-                "char" : event.char,
-                "key" : event.key,
-                "which" : event.which,
-                "location" : event.location,
-                "repeat" : event.repeat,
-                "locale" : event.locale,
-                "ctrlKey" : event.ctrlKey, "shiftKey" : event.shiftKey, "altKey" : event.altKey,
-                "metaKey" : event.metaKey,
-                "string" : String.fromCharCode(event.which ||
+            var object = { "type": event.type,
+                "char": event.char,
+                "key": event.key,
+                "which": event.which,
+                "location": event.location,
+                "repeat": event.repeat,
+                "locale": event.locale,
+                "ctrlKey": event.ctrlKey, "shiftKey": event.shiftKey, "altKey": event.altKey,
+                "metaKey": event.metaKey,
+                "string": String.fromCharCode(event.which ||
                                                event.keyCode),
-                "keyCode" : event.keyCode, "charCode" : event.charCode, "code" : event.code,
-                "time" : new Date().getTime(),
+                "keyCode": event.keyCode, "charCode": event.charCode, "code": event.code,
+                "time": new Date().getTime(),
             };
             sendObject(object);
         }
