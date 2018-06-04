@@ -292,7 +292,6 @@ window.onload = function () {
                     "pageY": changedTouch.pageY,
                     "radiusX": changedTouch.radiusX,
                     "radiusY": changedTouch.radiusY,
-                    "rotatingAngle": changedTouch.rotatingAngle,
                     "screenX": changedTouch.screenX,
                     "screenY": changedTouch.screenY,
                     "normalPositionX": changedTouch.screenX / screen.width,
