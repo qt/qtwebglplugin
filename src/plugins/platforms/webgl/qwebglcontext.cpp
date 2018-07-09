@@ -57,9 +57,9 @@ static Q_LOGGING_CATEGORY(lc, "qt.qpa.webgl.context")
 class QWebGLContextPrivate
 {
 public:
-    int id = -1;
     static QAtomicInt nextId;
     static QSet<int> waitingIds;
+    union { int id = -1; qintptr padded; };
     QPlatformSurface *currentSurface = nullptr;
     QSurfaceFormat surfaceFormat;
 };
