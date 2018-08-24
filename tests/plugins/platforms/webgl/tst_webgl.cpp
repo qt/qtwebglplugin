@@ -521,8 +521,6 @@ void tst_WebGL::update()
     sendMouseClick(0, 0, currentContext->winId);
     {
         QSignalSpy spy(this, &tst_WebGL::queryCommand);
-        QEXPECT_FAIL("Launcher", "QWindowPrivate::updateRequestPending is false, no more updates",
-                     Abort);
         QTRY_VERIFY(findSwapBuffers(spy));
     }
 }
