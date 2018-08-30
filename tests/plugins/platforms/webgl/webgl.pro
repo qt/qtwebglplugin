@@ -16,4 +16,10 @@ SOURCES += \
 TESTDATA = *.qml
 
 OTHER_FILES += \
-    basic_scene.qml
+    basic_scene.qml \
+    colors.qml \
+    images/back.png \
+    images/next.png \
+    launcher.qml \
+    LauncherList.qml \
+    SimpleLauncherDelegate.qml
