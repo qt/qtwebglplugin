@@ -60,6 +60,8 @@ class tst_WebGL : public QObject
     QStringList functions;
     QProcess process;
 
+    bool findSwapBuffers(const QSignalSpy &spy);
+
 signals:
     void command(const QString &name, const QVariantList &parameters);
     void queryCommand(const QString &name, int id, const QVariantList &parameters);
@@ -80,6 +82,14 @@ private slots:
     void waitForSwapBuffers_data();
     void waitForSwapBuffers();
 };
+
+bool tst_WebGL::findSwapBuffers(const QSignalSpy &spy)
+{
+    return std::find_if(spy.cbegin(), spy.cend(), [](const QList<QVariant> &list) {
+        // Our connect message changed the scene's size, forcing a swapBuffers() call.
+        return list.first() == QLatin1String("swapBuffers");
+    }) != spy.cend();
+}
 
 void tst_WebGL::parseTextMessage(const QString &text)
 {
@@ -275,10 +285,7 @@ void tst_WebGL::waitForSwapBuffers_data()
 void tst_WebGL::waitForSwapBuffers()
 {
     QSignalSpy spy(this, &tst_WebGL::queryCommand);
-    QTRY_VERIFY(std::find_if(spy.cbegin(), spy.cend(), [](const QList<QVariant> &list) {
-        // Our connect message changed the scene's size, forcing a swapBuffers() call.
-        return list.first() == QLatin1String("swapBuffers");
-    }) != spy.cend());
+    QTRY_VERIFY(findSwapBuffers(spy));
 }
 
 QTEST_MAIN(tst_WebGL)
