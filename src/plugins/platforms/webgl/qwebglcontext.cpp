@@ -41,6 +41,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qset.h>
 #include <QtGui/private/qguiapplication_p.h>
+#include <QtGui/private/qopenglcontext_p.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qimage.h>
 #include <QtGui/qopenglcontext.h>
@@ -1506,17 +1507,16 @@ bool QWebGLContext::makeCurrent(QPlatformSurface *surface)
             return false;
     }
 
-    auto context = QOpenGLContext::currentContext();
-    Q_ASSERT(context);
-    auto handle = static_cast<QWebGLContext *>(context->handle());
-    handle->d_func()->currentSurface = surface;
+    QOpenGLContextPrivate::setCurrentContext(context());
+    d->currentSurface = surface;
+
     auto event = createEvent(QStringLiteral("makeCurrent"));
     if (!event)
         return false;
     event->addInt(d->id);
     if (surface->surface()->surfaceClass() == QSurface::Window) {
         auto window = static_cast<QWebGLWindow *>(surface);
-        if (s_contextData[handle->id()].cachedParameters.isEmpty()) {
+        if (s_contextData[id()].cachedParameters.isEmpty()) {
             auto future = window->d_func()->defaults.get_future();
             std::future_status status = std::future_status::timeout;
             while (status == std::future_status::timeout) {
@@ -1524,7 +1524,7 @@ bool QWebGLContext::makeCurrent(QPlatformSurface *surface)
                     return false;
                 status = future.wait_for(std::chrono::milliseconds(100));
             }
-            s_contextData[handle->id()].cachedParameters  = future.get();
+            s_contextData[id()].cachedParameters  = future.get();
         }
         event->addInt(window->window()->width());
         event->addInt(window->window()->height());
