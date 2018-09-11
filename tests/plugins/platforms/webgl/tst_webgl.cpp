@@ -217,15 +217,16 @@ void tst_WebGL::init()
                        + executableName);
     process.setArguments(QStringList { QDir::toNativeSeparators(scene) });
     process.setEnvironment(QProcess::systemEnvironment()
-                           << "QT_QPA_PLATFORM=webgl:port=" PORTSTRING
-                           << "QT_LOGGING_RULES=qt.qpa.webgl.*=true");
+                           << "QT_QPA_PLATFORM=webgl:port=" PORTSTRING);
     process.start();
     process.waitForStarted();
     QVERIFY(process.isOpen());
+#if defined(QT_DEBUG)
     connect(&process, &QProcess::readyReadStandardOutput, [=]() {
         while (process.bytesAvailable())
             qDebug() << process.pid() << process.readLine();
     });
+#endif // defined(QT_DEBUG)
     QTRY_VERIFY(tryToConnect());
     const QJsonDocument connectMessage {
         QJsonObject {
