@@ -173,8 +173,6 @@ inline int imageSize(GLsizei width, GLsizei height, GLenum format, GLenum type,
     return rowSize * height;
 }
 
-QByteArrayList strings;
-
 static void lockMutex()
 {
     QWebGLIntegrationPrivate::instance()->webSocketServer->mutex()->lock();
@@ -851,6 +849,7 @@ QWEBGL_FUNCTION(getAttribLocation, GLint, glGetAttribLocation,
 QWEBGL_FUNCTION(getString, const GLubyte *, glGetString,
                 (GLenum) name)
 {
+    static QByteArrayList strings;
     const auto it = currentContextData()->cachedParameters.find(name);
     if (it != currentContextData()->cachedParameters.end()) {
         auto &stringCache = currentContextData()->stringCache;
