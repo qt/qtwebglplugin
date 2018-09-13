@@ -234,11 +234,7 @@ static void setVertexAttribs(QWebGLFunctionCall *event, GLsizei count)
         const ContextData::VertexAttrib &va(it.value());
         if (va.arrayBufferBinding == 0 && va.enabled) {
             int len = bufferSize(count, va.size, va.type, va.stride);
-            event->addUInt(it.key());
-            event->addInt(va.size);
-            event->addInt(va.type);
-            event->addInt(va.normalized);
-            event->addInt(va.stride);
+            event->addParameters(it.key(), va.size, int(va.type), va.normalized, va.stride);
             // found an enabled vertex attribute that was specified with a client-side pointer
             event->addData(QByteArray((const char *)va.pointer, len));
         }
