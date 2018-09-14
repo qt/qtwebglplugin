@@ -86,7 +86,7 @@ struct ContextData {
     struct VertexAttrib {
         VertexAttrib() : arrayBufferBinding(0), pointer(0), enabled(false) { }
         GLuint arrayBufferBinding;
-        void *pointer;
+        const void *pointer;
         bool enabled;
         GLint size;
         GLenum type;
@@ -236,7 +236,7 @@ static void setVertexAttribs(QWebGLFunctionCall *event, GLsizei count)
             int len = bufferSize(count, va.size, va.type, va.stride);
             event->addParameters(it.key(), va.size, int(va.type), va.normalized, va.stride);
             // found an enabled vertex attribute that was specified with a client-side pointer
-            event->addData(QByteArray((const char *)va.pointer, len));
+            event->addData(QByteArray(reinterpret_cast<const char *>(va.pointer), len));
         }
     }
 }
@@ -477,7 +477,7 @@ namespace QWebGL {
     extern const GLFunction REMOTE_NAME { \
         #REMOTE_NAME, \
         #LOCAL_NAME, \
-        (QFunctionPointer) LOCAL_NAME, \
+        reinterpret_cast<QFunctionPointer>(LOCAL_NAME), \
         GLFunction::ParameterList({FOR_EACH(QWEBGL_FUNCTION_PARAMETER, __VA_ARGS__)}) \
     }; \
     RET_TYPE LOCAL_NAME(FOR_EACH(PAIR, __VA_ARGS__))
@@ -593,14 +593,17 @@ QWEBGL_FUNCTION(compressedTexImage2D, void, glCompressedTexImage2D,
                 (GLsizei) width, (GLsizei) height, (GLint) border,
                 (GLsizei) imageSize, (const void *) data) {
     postEvent<&compressedTexImage2D>(target, level, internalformat, width, height, border,
-                                     imageSize, QByteArray((const char *) data, imageSize));
+                                     imageSize, QByteArray(reinterpret_cast<const char *>(data),
+                                                           imageSize));
 }
 
 QWEBGL_FUNCTION(compressedTexSubImage2D, void, glCompressedTexSubImage2D,
                 (GLenum) target, (GLint) level, (GLint) xoffset, (GLint) yoffset,
                 (GLsizei) width, (GLsizei) height, (GLenum) format,
                 (GLsizei) imageSize, (const void *) data) {
-    postEvent<&compressedTexSubImage2D>(target, level, xoffset, yoffset, width, height, format, imageSize, QByteArray((const char *)data, imageSize));
+    postEvent<&compressedTexSubImage2D>(target, level, xoffset, yoffset, width, height, format,
+                                        imageSize, QByteArray(reinterpret_cast<const char *>(data),
+                                                              imageSize));
 }
 
 QWEBGL_FUNCTION_POSTEVENT(copyTexImage2D, glCopyTexImage2D,
@@ -703,10 +706,12 @@ QWEBGL_FUNCTION(drawElements, void, glDrawElements,
     event->addParameters(mode, count, type);
     setVertexAttribs(event, count);
     ContextData *d = currentContextData();
-    if (d->boundElementArrayBuffer == 0)
-        event->addParameters(0, QByteArray((const char *) indices, count * elementSize(type)));
-    else
+    if (d->boundElementArrayBuffer == 0) {
+        event->addParameters(0, QByteArray(reinterpret_cast<const char *>(indices),
+                                           count * elementSize(type)));
+    } else {
         event->addParameters(1, uint(quintptr(indices)));
+    }
     QCoreApplication::postEvent(QWebGLIntegrationPrivate::instance()->webSocketServer, event);
 }
 
@@ -855,12 +860,12 @@ QWEBGL_FUNCTION(getString, const GLubyte *, glGetString,
             auto it = stringCache.find(string), end = stringCache.end();
             if (it == end)
                 it = stringCache.insert(string);
-            return (const GLubyte *)(it->constData());
+            return reinterpret_cast<const GLubyte *>(it->constData());
         }
     }
     const auto value = postEventAndQuery<&getString>(QByteArray(), name);
     strings.append(value);
-    return (const GLubyte *)strings.last().constData();
+    return reinterpret_cast<const GLubyte *>(strings.last().constData());
 }
 
 QWEBGL_FUNCTION(getIntegerv, void, glGetIntegerv,
@@ -1274,7 +1279,7 @@ QWEBGL_FUNCTION(texSubImage2D, void, glTexSubImage2D,
                 (const void *) pixels)
 {
     postEvent<&texSubImage2D>(target, level, xoffset, yoffset, width, height, format, type,
-                             pixels ? QByteArray((const char *)pixels,
+                             pixels ? QByteArray(reinterpret_cast<const char *>(pixels),
                                                  imageSize(width, height, format, type,
                                                            currentContextData()->pixelStorage))
                                     : nullptr);
@@ -1423,7 +1428,7 @@ QWEBGL_FUNCTION(vertexAttribPointer, void, glVertexAttribPointer,
     va.type = type;
     va.normalized = normalized;
     va.stride = stride;
-    va.pointer = (void *) pointer;
+    va.pointer = pointer;
     if (d->boundArrayBuffer)
         postEvent<&vertexAttribPointer>(index, size, type, normalized, stride,
                                        uint(quintptr(pointer)));
