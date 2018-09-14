@@ -48,7 +48,7 @@
 
 #include <memory>
 
-#define PORT 8080
+#define PORT 29836
 #define PORTSTRING QT_STRINGIFY(PORT)
 
 class tst_WebGL : public QObject

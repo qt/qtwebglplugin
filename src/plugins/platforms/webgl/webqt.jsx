@@ -1086,6 +1086,7 @@ window.onload = function () {
     };
     socket.onclose = function (event) {
         console.log("Socket Closed (" + event.code + "): " + event.reason);
+        window.location.reload();
     };
     socket.onerror = function (error) {
         console.log("Socket error: " + error.toString());
