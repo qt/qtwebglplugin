@@ -84,7 +84,7 @@ struct ContextData {
 //    GLuint boundReadFramebuffer = 0;
     GLuint unpackAlignment = 4;
     struct VertexAttrib {
-        VertexAttrib() : arrayBufferBinding(0), pointer(0), enabled(false) { }
+        VertexAttrib() : arrayBufferBinding(0), pointer(nullptr), enabled(false) { }
         GLuint arrayBufferBinding;
         const void *pointer;
         bool enabled;
