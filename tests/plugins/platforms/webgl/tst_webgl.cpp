@@ -224,6 +224,9 @@ void tst_WebGL::parseTextMessage(const QString &text)
     }
 }
 
+// This function gets called inside a QTRY_* that is subject to
+// a QEXPECT_FAIL, which treats QCOMPARE and QVERIFY
+// specially, so we have to avoid using those.
 void tst_WebGL::parseBinaryMessage(const QByteArray &data)
 {
     const QSet<QString> commandsNeedingResponse {
@@ -279,19 +282,23 @@ void tst_WebGL::parseBinaryMessage(const QByteArray &data)
         quint32 magic = 0;
         stream >> magic;
         offset += sizeof(magic);
-        QCOMPARE(magic, 0xbaadf00d);
+        if (magic != 0xbaadf00d) {
+            QFAIL(qPrintable(QStringLiteral("Magic token is 0x%1 not 0x%2")
+                             .arg(magic, 0, 16).arg(0xbaadf00d, 0, 16)));
+        }
     }
 
-    QCOMPARE(int(offset), data.size());
+    if (int(offset) != data.size())
+        QFAIL(qPrintable(QStringLiteral("Offset is %1 not %2").arg(offset).arg(data.size())));
 
     if (id == -1) {
         emit command(function, parameters);
 
         if (function == "attachShader") {
             const auto shader = pointer(parameters[1], shaders);
-            QVERIFY(shader);
+            if (!shader) QFAIL("Null pointer");
             auto  program = pointer(parameters[0], programs);
-            QVERIFY(program);
+            if (!program) QFAIL("Null pointer");
             program->attached[shader->type] = shader;
         } else if (function == "bindBuffer") {
             auto buffer = pointer(parameters[1], buffers);
@@ -303,15 +310,15 @@ void tst_WebGL::parseBinaryMessage(const QByteArray &data)
                 QTest::qFail("Unsupported buffer type", __FILE__, __LINE__);
         } else if (function == "compileShader") {
             auto shader = pointer(parameters[0], shaders);
-            QVERIFY(shader);
+            if (!shader) QFAIL("Null pointer");
             shader->compiled = true;
         } else if (function == "linkProgram") {
             auto program = pointer(parameters[0], programs);
-            QVERIFY(program);
+            if (!program) QFAIL("Null pointer");
             program->linked = true;
         } else if (function == "shaderSource") {
             auto shader = pointer(parameters[0], shaders);
-            QVERIFY(shader);
+            if (!shader) QFAIL("Null pointer");
             shader->source = parameters[1].toString();
         } else if (function == "makeCurrent") {
             currentContext = pointer(parameters[3].toInt(), contexts);
