@@ -52,10 +52,10 @@ T readNext(QDataStream &stream, quint32 &offset)
 template<>
 QString readNext(QDataStream &stream, quint32 &offset)
 {
-    QString value;
-    stream >> value;
-    offset += quint32(int(sizeof(qint32)) + value.size());
-    return value;
+    std::vector<char> data(readNext<quint32>(stream, offset));
+    stream.readRawData(&data[0], data.size());
+    offset += data.size();
+    return QString::fromUtf8(data.data(), data.size());
 }
 
 template<>
