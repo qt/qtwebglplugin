@@ -887,7 +887,7 @@ QWEBGL_FUNCTION(getIntegerv, void, glGetIntegerv,
         case QVariant::List: values = it->toList(); break;
         default: values = QVariantList{ *it };
         }
-        for (const auto integer : qAsConst(values)) {
+        for (const auto &integer : qAsConst(values)) {
             bool ok;
             *data = integer.toInt(&ok);
             if (!ok)
