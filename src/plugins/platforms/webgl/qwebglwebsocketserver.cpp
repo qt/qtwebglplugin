@@ -275,6 +275,7 @@ void QWebGLWebSocketServer::onNewConnection()
 #endif
             },
             { QStringLiteral("loadingScreen"), qgetenv("QT_WEBGL_LOADINGSCREEN") },
+            { QStringLiteral("mouseTracking"), qgetenv("QT_WEBGL_MOUSETRACKING") },
             { QStringLiteral("supportedFunctions"),
               QVariant::fromValue(QWebGLContext::supportedFunctions()) },
             { "sysinfo",
@@ -287,7 +288,7 @@ void QWebGLWebSocketServer::onNewConnection()
                     { QStringLiteral("machineHostName"), QSysInfo::machineHostName() },
                     { QStringLiteral("prettyProductName"), QSysInfo::prettyProductName() },
                     { QStringLiteral("productType"), QSysInfo::productType() },
-                    { QStringLiteral("productVersion"), QSysInfo::productVersion() }
+                    { QStringLiteral("productVersion"), QSysInfo::productVersion() },
                 }
             }
         };
