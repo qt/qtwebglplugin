@@ -34,6 +34,7 @@ function physicalSizeRatio() {
 
 window.onload = function () {
     var DEBUG = 0;
+    var MOUSETRACKING = 0;
     var LOADINGSCREEN = 1;
     var canvas;
     var socket = new WebSocket("ws://" + host + ":" + port);
@@ -234,8 +235,9 @@ window.onload = function () {
         };
 
         canvas.onmousemove = function (event) {
-            sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
-                           name);
+            if (MOUSETRACKING || event.buttons > 0)
+                sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
+                               name);
         };
 
         canvas.onmouseup = function (event) {
@@ -1126,6 +1128,8 @@ window.onload = function () {
             var sysinfo = obj.sysinfo;
             if (obj.debug)
                 DEBUG = 1;
+            if (obj.mouseTracking)
+                MOUSETRACKING = 1;
             if (obj.loadingScreen === "0")
                 LOADINGSCREEN = 0;
             console.log(sysinfo);
