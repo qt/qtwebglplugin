@@ -1570,6 +1570,8 @@ QWebGLFunctionCall *QWebGLContext::createEvent(const QString &functionName, bool
     auto context = QOpenGLContext::currentContext();
     Q_ASSERT(context);
     const auto handle = static_cast<QWebGLContext *>(context->handle());
+    if (!handle)
+        return nullptr;
     auto integrationPrivate = QWebGLIntegrationPrivate::instance();
     const auto clientData = integrationPrivate->findClientData(handle->currentSurface());
     if (!clientData || !clientData->socket
