@@ -472,24 +472,30 @@ namespace QWebGL {
         ParameterTypeTraits<TYPEOF(ITEM)>::isArray() \
     }
 
+#if defined(Q_CC_MSVC) && defined(Q_OS_WIN32) && !defined(Q_OS_WIN64)
+#   define WEBGL_APIENTRY __stdcall
+#else
+#   define WEBGL_APIENTRY
+#endif
+
 #define QWEBGL_FUNCTION(REMOTE_NAME, RET_TYPE, LOCAL_NAME, ...) \
-    RET_TYPE LOCAL_NAME(FOR_EACH(TYPEOF, __VA_ARGS__));\
+    RET_TYPE WEBGL_APIENTRY LOCAL_NAME(FOR_EACH(TYPEOF, __VA_ARGS__));\
     extern const GLFunction REMOTE_NAME { \
         #REMOTE_NAME, \
         #LOCAL_NAME, \
         reinterpret_cast<QFunctionPointer>(LOCAL_NAME), \
         GLFunction::ParameterList({FOR_EACH(QWEBGL_FUNCTION_PARAMETER, __VA_ARGS__)}) \
     }; \
-    RET_TYPE LOCAL_NAME(FOR_EACH(PAIR, __VA_ARGS__))
+    RET_TYPE WEBGL_APIENTRY LOCAL_NAME(FOR_EACH(PAIR, __VA_ARGS__))
 
 #define QWEBGL_FUNCTION_NO_PARAMS(REMOTE_NAME, RET_TYPE, LOCAL_NAME) \
-    RET_TYPE LOCAL_NAME();\
+    RET_TYPE WEBGL_APIENTRY LOCAL_NAME();\
     extern const GLFunction REMOTE_NAME { \
         #REMOTE_NAME, \
         #LOCAL_NAME, \
         (QFunctionPointer) LOCAL_NAME \
     }; \
-    RET_TYPE LOCAL_NAME()
+    RET_TYPE WEBGL_APIENTRY LOCAL_NAME()
 
 #define QWEBGL_FUNCTION_POSTEVENT(REMOTE_NAME, LOCAL_NAME, ...) \
     QWEBGL_FUNCTION(REMOTE_NAME, void, LOCAL_NAME, __VA_ARGS__) { \
