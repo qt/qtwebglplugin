@@ -70,12 +70,13 @@ QWebGLIntegrationPrivate *QWebGLIntegrationPrivate::instance()
     return static_cast<QWebGLIntegration *>(platformIntegration)->d_ptr.data();
 }
 
-QWebGLIntegration::QWebGLIntegration(quint16 port) :
+QWebGLIntegration::QWebGLIntegration(quint16 port, quint16 wssport) :
     d_ptr(new QWebGLIntegrationPrivate)
 {
     Q_D(QWebGLIntegration);
     d->q_ptr = this;
     d->httpPort = port;
+    d->wssPort = wssport;
     d->touchDevice = new QTouchDevice;
     d->touchDevice->setName("EmulatedTouchDevice");
     d->touchDevice->setType(QTouchDevice::TouchScreen);
@@ -112,7 +113,7 @@ void QWebGLIntegration::initialize()
     d->screen = new QWebGLScreen;
     screenAdded(d->screen, true);
 
-    d->webSocketServer = new QWebGLWebSocketServer;
+    d->webSocketServer = new QWebGLWebSocketServer(d->wssPort);
     d->httpServer = new QWebGLHttpServer(d->webSocketServer, this);
     bool ok = d->httpServer->listen(QHostAddress::Any, d->httpPort);
     if (!ok) {
