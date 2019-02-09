@@ -178,20 +178,18 @@ window.onload = function () {
         var time = 0.0;
 
         function draw() {
-            if (canvas) {
-                gl.uniform1f(timeLocation, time);
-                time += 0.01;
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-                setTimeout(draw, 16);
-            }
+            gl.uniform1f(timeLocation, time);
+            time += 0.01;
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
         }
-        draw();
+        canvas.timerId = setInterval(draw, 16);
         return canvas;
     };
 
     var createCanvas = function (name, x, y, width, height, title) {
         var body = document.getElementsByTagName("body")[0];
         if (initialLoadingCanvas) {
+            clearInterval(initialLoadingCanvas.timerId);
             body.removeChild(initialLoadingCanvas);
             initialLoadingCanvas = undefined;
         }
@@ -1020,6 +1018,7 @@ window.onload = function () {
             var data =  windowData[currentWindowId];
             if (data.loadingCanvas) {
                 var body = document.getElementsByTagName("body")[0];
+                clearInterval(data.loadingCanvas.timerId);
                 body.removeChild(data.loadingCanvas);
                 data.loadingCanvas = undefined;
             }
