@@ -336,7 +336,6 @@ void QWebGLIntegrationPrivate::clientConnected(QWebSocket *socket,
                                                const double physicalWidth,
                                                const double physicalHeight)
 {
-    Q_Q(QWebGLIntegration);
     qCDebug(lcWebGL, "%p, Size: %dx%d. Physical Size: %fx%f",
             socket, width, height, physicalWidth, physicalHeight);
     QWebGLIntegrationPrivate::ClientData client;
