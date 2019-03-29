@@ -111,7 +111,7 @@ void QWebGLIntegration::initialize()
 
     d->inputContext = QPlatformInputContextFactory::create();
     d->screen = new QWebGLScreen;
-    screenAdded(d->screen, true);
+    QWindowSystemInterface::handleScreenAdded(d->screen, true);
 
     d->webSocketServer = new QWebGLWebSocketServer(d->wssPort);
     d->httpServer = new QWebGLHttpServer(d->webSocketServer, this);
@@ -139,7 +139,7 @@ void QWebGLIntegration::destroy()
     foreach (QWindow *w, qGuiApp->topLevelWindows())
         w->destroy();
 
-    destroyScreen(d->screen);
+    QWindowSystemInterface::handleScreenRemoved(d->screen);
 
     d->screen = nullptr;
 
@@ -346,7 +346,7 @@ void QWebGLIntegrationPrivate::clientConnected(QWebSocket *socket,
     clients.mutex.lock();
     clients.list.append(client);
     clients.mutex.unlock();
-    q->screenAdded(client.platformScreen, true);
+    QWindowSystemInterface::handleScreenAdded(client.platformScreen, true);
     connectNextClient();
 }
 
