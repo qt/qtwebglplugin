@@ -228,9 +228,8 @@ static int bufferSize(GLsizei count, GLint elemsPerVertex, GLenum type, GLsizei 
 static void setVertexAttribs(QWebGLFunctionCall *event, GLsizei count)
 {
     event->addInt(currentContextData()->vertexAttribPointers.count());
-    QHashIterator<GLuint, ContextData::VertexAttrib> it(currentContextData()->vertexAttribPointers);
-    while (it.hasNext()) {
-        it.next();
+    const auto &vertexAttribPointers = currentContextData()->vertexAttribPointers;
+    for (auto it = vertexAttribPointers.cbegin(), end = vertexAttribPointers.cend(); it != end; ++it) {
         const ContextData::VertexAttrib &va(it.value());
         if (va.arrayBufferBinding == 0 && va.enabled) {
             int len = bufferSize(count, va.size, va.type, va.stride);
