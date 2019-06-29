@@ -136,7 +136,8 @@ void QWebGLIntegration::initialize()
 void QWebGLIntegration::destroy()
 {
     Q_D(QWebGLIntegration);
-    foreach (QWindow *w, qGuiApp->topLevelWindows())
+    const auto tlws = qGuiApp->topLevelWindows();
+    for (QWindow *w : tlws)
         w->destroy();
 
     QWindowSystemInterface::handleScreenRemoved(d->screen);
