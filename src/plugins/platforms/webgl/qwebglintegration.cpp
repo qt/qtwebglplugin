@@ -253,6 +253,12 @@ QPlatformWindow *QWebGLIntegration::createPlatformWindow(QWindow *window) const
     return platformWindow;
 }
 
+QPlatformOffscreenSurface *QWebGLIntegration::createPlatformOffscreenSurface(QOffscreenSurface *surface) const
+{
+    qCDebug(lcWebGL, "New offscreen surface %p", surface);
+    return new QWebGLOffscreenSurface(surface);
+}
+
 QPlatformOpenGLContext *QWebGLIntegration::createPlatformOpenGLContext(QOpenGLContext *context)
     const
 {
