@@ -84,11 +84,11 @@ class tst_WebGL : public QObject
         Program *program = nullptr;
     };
 
-    QList<Context> contexts;
-    QList<Buffer> buffers;
-    QList<Program> programs;
-    QList<Shader> shaders;
-    QList<Texture> textures;
+    QHash<int, Context> contexts;
+    QHash<int, Buffer> buffers;
+    QHash<int, Program> programs;
+    QHash<int, Shader> shaders;
+    QHash<int, Texture> textures;
     Context *currentContext = nullptr;
 
     QNetworkAccessManager manager;
@@ -102,12 +102,12 @@ class tst_WebGL : public QObject
     void sendMouseClick(quint32 x, quint32 y, int winId);
 
     template <typename Struct>
-    Struct *pointer(const QVariant &id, QList<Struct> &container)
+    Struct *pointer(const QVariant &id, QHash<int, Struct> &container)
     {
         const auto handle = id.toInt();
-        if (handle > 0 && handle <= container.size())
-            return &container[handle - 1];
-        return nullptr;
+        if (!container.contains(handle - 1))
+            return nullptr;
+        return &container[handle - 1];
     }
 
     bool findSwapBuffers(const QSignalSpy &spy);
@@ -220,7 +220,7 @@ void tst_WebGL::parseTextMessage(const QString &text)
             },
         };
         webSocket.sendTextMessage(defaultValuesMessage.toJson());
-        contexts.append(Context(document["winId"].toInt()));
+        contexts.insert(contexts.size(), Context(document["winId"].toInt()));
     }
 }
 
@@ -332,22 +332,22 @@ void tst_WebGL::parseBinaryMessage(const QByteArray &data)
         static QMap<QString, int> nextIds;
 
         if (function == "createProgram") {
-            programs.append(Program{});
+            programs.insert(programs.size(), Program{});
             retval = programs.size();
         } else if (function == "createShader") {
-            shaders.append(Shader(parameters[0].toUInt()));
+            shaders.insert(shaders.size(), parameters[0].toUInt());
             retval = shaders.size();
         } else if (function == "genBuffers") {
             QJsonArray array;
             for (int i = 0, count = parameters.first().toInt(); i < count; ++i) {
-                buffers.append(Buffer{});
+                buffers.insert(buffers.size(), Buffer{});
                 array.append(buffers.size());
             }
             retval = array;
         } else if (function == "genTextures") {
             QJsonArray array;
             for (int i = 0, count = parameters.first().toInt(); i < count; ++i) {
-                textures.append(Texture{});
+                textures.insert(textures.size(), Texture{});
                 array.append(textures.size());
             }
             retval = array;
@@ -489,7 +489,7 @@ void tst_WebGL::reload_data()
 {
     QTest::addColumn<QString>("scene"); // Fetched in tst_WebGL::init
     QTest::newRow("Basic scene") << QFINDTESTDATA("basic_scene.qml");
-    QTest::newRow("Colors") << QFINDTESTDATA("colors.qml");;
+    QTest::newRow("Colors") << QFINDTESTDATA("colors.qml");
 }
 
 void tst_WebGL::reload()
