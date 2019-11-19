@@ -212,7 +212,7 @@ window.onload = function () {
             var object = { "type": "mouse",
                 "buttons": buttons,
                 "layerX": layerX, "layerY": layerY, "clientX": clientX, "clientY": clientY,
-                "time": new Date().getTime(),
+                "time": new Date().getTime().toString(),
                 "name": name
             };
             sendObject(object);
@@ -285,7 +285,7 @@ window.onload = function () {
             var object = {
                 "type": "touch",
                 "name": name,
-                "time": new Date().getTime(),
+                "time": new Date().getTime().toString(),
                 "event": event.type,
                 "changedTouches": [],
                 "stationaryTouches": [],
