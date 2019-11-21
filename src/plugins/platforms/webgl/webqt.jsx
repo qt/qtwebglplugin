@@ -54,6 +54,8 @@ window.onload = function () {
     var currentZIndex = 1;
     var textDecoder;
     var initialLoadingCanvas;
+    var supportsTouch = 'ontouchstart' in window || navigator.msMaxTouchPoints;
+
     if (typeof TextDecoder !== 'undefined') {
         textDecoder = new TextDecoder("utf8");
     } else {
@@ -227,12 +229,16 @@ window.onload = function () {
 
         canvas.onmousedown = function (event) {
             /* jslint bitwise: true */
+            if (supportsTouch && event.mozInputSource == MOZ_SOURCE_TOUCH)
+                return;
             qtButtons |= mapButton(event.button);
             sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
                            name);
         };
 
         canvas.onmousemove = function (event) {
+            if (supportsTouch && event.mozInputSource == MOZ_SOURCE_TOUCH)
+                return;
             if (MOUSETRACKING || event.buttons > 0)
                 sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
                                name);
@@ -240,6 +246,8 @@ window.onload = function () {
 
         canvas.onmouseup = function (event) {
             /* jslint bitwise: true */
+            if (supportsTouch && event.mozInputSource == MOZ_SOURCE_TOUCH)
+                return;
             qtButtons &= ~mapButton(event.button);
             sendMouseEvent(qtButtons, event.layerX, event.layerY, event.clientX, event.clientY,
                            name);
