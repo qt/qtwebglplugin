@@ -147,7 +147,7 @@ inline int imageSize(GLsizei width, GLsizei height, GLenum format, GLenum type,
         { GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, 2 },
         { GL_RGB, GL_UNSIGNED_BYTE, 3 },
         { GL_RGB, GL_UNSIGNED_SHORT_5_6_5, 2 },
-        { GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 1 },
+        { GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, 2 },
         { GL_LUMINANCE, GL_UNSIGNED_BYTE, 1 },
         { GL_ALPHA, GL_UNSIGNED_BYTE, 1 },
 
