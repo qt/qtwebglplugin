@@ -325,7 +325,7 @@ struct GLFunction
 
     static QHash<QString, const GLFunction *> byName;
     static QStringList remoteFunctionNames;
-    using ParameterList = QVector<Parameter>;
+    using ParameterList = QList<Parameter>;
 
     GLFunction(const QString &remoteName,
                const QString &localName,

@@ -64,7 +64,7 @@ public:
 
     struct ClientData
     {
-        QVector<QWebGLWindow *> platformWindows;
+        QList<QWebGLWindow *> platformWindows;
         QWebSocket *socket;
         QWebGLScreen *platformScreen = nullptr;
     };
@@ -88,11 +88,11 @@ public:
         QList<ClientData> list;
         QMutex mutex;
     } clients;
-    mutable QVector<QWindow *> windows;
+    mutable QList<QWindow *> windows;
 
     QMutex waitMutex;
     QWaitCondition waitCondition;
-    QVector<int> pendingResponses;
+    QList<int> pendingResponses;
     QHash<int, QVariant> receivedResponses;
     QTouchDevice *touchDevice = nullptr;
 
