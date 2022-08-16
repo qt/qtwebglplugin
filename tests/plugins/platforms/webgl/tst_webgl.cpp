@@ -516,7 +516,7 @@ void tst_WebGL::update()
 {
     {
         QSignalSpy spy(this, &tst_WebGL::queryCommand);
-        QTRY_VERIFY(findSwapBuffers(spy));
+        QTRY_VERIFY_WITH_TIMEOUT(findSwapBuffers(spy), 10000);
         QVERIFY(!QTest::currentTestFailed());
     }
     sendMouseClick(0, 0, currentContext->winId);
